@@ -42,7 +42,7 @@ func NewRouter(
 }
 
 func (r *Router) Setup() *gin.Engine {
-	r.engine.Use(middleware.Recovery(r.logger))
+	r.engine.Use(middleware.Recovery(r.logger, r.config.Environment))
 	r.engine.Use(middleware.Logger(r.logger))
 	r.engine.Use(middleware.CORS(r.config.Security.AllowedOrigins))
 
