@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  auth-db:
+    image: postgres:16-alpine
+    container_name: auth-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: auth_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - auth-network
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "8080:8080"
+    environment:
+      - ENVIRONMENT=development
+      - PORT=8080
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=auth_db
+      - JWT_SECRET=your-secret-key-change-this-in-production
+      - ACCESS_TOKEN_TTL=15m
+      - REFRESH_TOKEN_TTL=720h
+      - MAX_LOGIN_ATTEMPTS=5
+      - ACCOUNT_LOCK_DURATION=15m
+      - ALLOWED_ORIGINS=http://localhost:3000
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    networks:
+      - auth-network
+    restart: unless-stopped
+
+volumes:
+  auth-db-data:
+    driver: local
+
+networks:
+  auth-network:
+    driver: bridge
