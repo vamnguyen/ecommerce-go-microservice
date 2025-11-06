@@ -85,10 +85,16 @@ func (s *JWTService) ValidateAccessToken(tokenString string) (*service.TokenClai
 		return nil, domainErr.ErrInvalidToken
 	}
 
+	var issuedAt int64
+	if claims.IssuedAt != nil {
+		issuedAt = claims.IssuedAt.Unix()
+	}
+
 	return &service.TokenClaims{
-		UserID: claims.UserID,
-		Email:  claims.Email,
-		Role:   claims.Role,
+		UserID:   claims.UserID,
+		Email:    claims.Email,
+		Role:     claims.Role,
+		IssuedAt: issuedAt,
 	}, nil
 }
 

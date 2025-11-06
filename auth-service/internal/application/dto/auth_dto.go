@@ -22,18 +22,13 @@ type ChangePasswordRequest struct {
 }
 
 type AuthResponse struct {
-	AccessToken  string  `json:"access_token"`
-	RefreshToken string  `json:"refresh_token,omitempty"`
-	TokenType    string  `json:"token_type"`
-	ExpiresIn    int     `json:"expires_in"`
-	User         UserDTO `json:"user"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token,omitempty"`
 }
 
 type RefreshTokenResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int    `json:"expires_in"`
 }
 
 type UserDTO struct {

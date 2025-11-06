@@ -7,23 +7,38 @@ import (
 )
 
 type RefreshToken struct {
-	ID        uuid.UUID
-	UserID    uuid.UUID
-	TokenHash string
-	ExpiresAt time.Time
-	IsRevoked bool
-	CreatedAt time.Time
-	RevokedAt *time.Time
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	TokenHash     string
+	TokenFamilyID uuid.UUID
+	ExpiresAt     time.Time
+	IsRevoked     bool
+	CreatedAt     time.Time
+	RevokedAt     *time.Time
 }
 
 func NewRefreshToken(userID uuid.UUID, tokenHash string, expiresAt time.Time) *RefreshToken {
+	familyID := uuid.New()
 	return &RefreshToken{
-		ID:        uuid.New(),
-		UserID:    userID,
-		TokenHash: tokenHash,
-		ExpiresAt: expiresAt,
-		IsRevoked: false,
-		CreatedAt: time.Now(),
+		ID:            uuid.New(),
+		UserID:        userID,
+		TokenHash:     tokenHash,
+		TokenFamilyID: familyID,
+		ExpiresAt:     expiresAt,
+		IsRevoked:     false,
+		CreatedAt:     time.Now(),
+	}
+}
+
+func NewRefreshTokenWithFamily(userID uuid.UUID, tokenHash string, expiresAt time.Time, familyID uuid.UUID) *RefreshToken {
+	return &RefreshToken{
+		ID:            uuid.New(),
+		UserID:        userID,
+		TokenHash:     tokenHash,
+		TokenFamilyID: familyID,
+		ExpiresAt:     expiresAt,
+		IsRevoked:     false,
+		CreatedAt:     time.Now(),
 	}
 }
 

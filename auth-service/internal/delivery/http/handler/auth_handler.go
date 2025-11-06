@@ -6,6 +6,7 @@ import (
 	"auth-service/internal/application/dto"
 	"auth-service/internal/application/usecase"
 	domainErr "auth-service/internal/domain/errors"
+	"auth-service/internal/infrastructure/config"
 	"auth-service/internal/infrastructure/logger"
 
 	"github.com/gin-gonic/gin"
@@ -15,12 +16,14 @@ import (
 type AuthHandler struct {
 	authUseCase *usecase.AuthUseCase
 	logger      *logger.Logger
+	config      *config.Config
 }
 
-func NewAuthHandler(authUseCase *usecase.AuthUseCase, logger *logger.Logger) *AuthHandler {
+func NewAuthHandler(authUseCase *usecase.AuthUseCase, logger *logger.Logger, config *config.Config) *AuthHandler {
 	return &AuthHandler{
 		authUseCase: authUseCase,
 		logger:      logger,
+		config:      config,
 	}
 }
 
@@ -57,38 +60,52 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	h.setRefreshTokenCookie(c, result.RefreshToken)
+
+	response := dto.AuthResponse{
+		AccessToken: result.AccessToken,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	var req dto.RefreshTokenRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+	refreshToken, err := c.Cookie(h.config.Cookie.RefreshTokenName)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing refresh token"})
 		return
 	}
 
-	result, err := h.authUseCase.RefreshToken(c.Request.Context(), req.RefreshToken)
+	result, err := h.authUseCase.RefreshToken(c.Request.Context(), refreshToken)
 	if err != nil {
+		h.clearRefreshTokenCookie(c)
 		h.handleError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	h.setRefreshTokenCookie(c, result.RefreshToken)
+
+	response := dto.RefreshTokenResponse{
+		AccessToken: result.AccessToken,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	userIDStr, _ := userID.(string)
 
-	var req dto.RefreshTokenRequest
-	_ = c.ShouldBindJSON(&req)
+	accessToken, _ := c.Get("accessToken")
+	accessTokenStr, _ := accessToken.(string)
 
-	ipAddress := c.ClientIP()
-	userAgent := c.GetHeader("User-Agent")
+	refreshToken, _ := c.Cookie(h.config.Cookie.RefreshTokenName)
 
-	if err := h.authUseCase.Logout(c.Request.Context(), userIDStr, req.RefreshToken, ipAddress, userAgent); err != nil {
+	if err := h.authUseCase.Logout(c.Request.Context(), userIDStr, refreshToken, accessTokenStr, c.ClientIP(), c.GetHeader("User-Agent")); err != nil {
 		h.logger.Error("logout failed", zap.Error(err))
 	}
+
+	h.clearRefreshTokenCookie(c)
 
 	c.Status(http.StatusNoContent)
 }
@@ -97,10 +114,13 @@ func (h *AuthHandler) LogoutAll(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	userIDStr, _ := userID.(string)
 
+	accessToken, _ := c.Get("accessToken")
+	accessTokenStr, _ := accessToken.(string)
+
 	ipAddress := c.ClientIP()
 	userAgent := c.GetHeader("User-Agent")
 
-	if err := h.authUseCase.LogoutAll(c.Request.Context(), userIDStr, ipAddress, userAgent); err != nil {
+	if err := h.authUseCase.LogoutAll(c.Request.Context(), userIDStr, accessTokenStr, ipAddress, userAgent); err != nil {
 		h.handleError(c, err)
 		return
 	}
@@ -139,6 +159,32 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.MessageResponse{
 		Message: "password changed successfully",
 	})
+}
+
+// Helpers
+
+func (h *AuthHandler) setRefreshTokenCookie(c *gin.Context, refreshToken string) {
+	c.SetCookie(
+		h.config.Cookie.RefreshTokenName,
+		refreshToken,
+		int(h.config.JWT.RefreshTokenTTL.Seconds()),
+		"/",
+		h.config.Cookie.Domain,
+		h.config.Cookie.Secure,
+		true,
+	)
+}
+
+func (h *AuthHandler) clearRefreshTokenCookie(c *gin.Context) {
+	c.SetCookie(
+		h.config.Cookie.RefreshTokenName,
+		"",
+		-1,
+		"/",
+		h.config.Cookie.Domain,
+		h.config.Cookie.Secure,
+		true,
+	)
 }
 
 func (h *AuthHandler) handleError(c *gin.Context, err error) {

@@ -45,6 +45,7 @@ func main() {
 
 	userRepo := postgres.NewUserRepository(db)
 	refreshTokenRepo := postgres.NewRefreshTokenRepository(db)
+	tokenBlacklistRepo := postgres.NewTokenBlacklistRepository(db)
 	auditLogRepo := postgres.NewAuditLogRepository(db)
 
 	passwordService := security.NewBcryptPasswordService()
@@ -57,6 +58,7 @@ func main() {
 	authUseCase := usecase.NewAuthUseCase(
 		userRepo,
 		refreshTokenRepo,
+		tokenBlacklistRepo,
 		auditLogRepo,
 		passwordService,
 		tokenService,
@@ -66,9 +68,9 @@ func main() {
 		},
 	)
 
-	authHandler := handler.NewAuthHandler(authUseCase, log)
+	authHandler := handler.NewAuthHandler(authUseCase, log, cfg)
 	healthHandler := handler.NewHealthHandler()
-	authMiddleware := middleware.NewAuthMiddleware(tokenService)
+	authMiddleware := middleware.NewAuthMiddleware(tokenService, tokenBlacklistRepo, userRepo)
 
 	r := router.NewRouter(authHandler, healthHandler, authMiddleware, log, cfg)
 	engine := r.Setup()

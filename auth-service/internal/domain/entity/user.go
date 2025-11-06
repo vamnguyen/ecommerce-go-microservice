@@ -52,7 +52,7 @@ func (u *User) IsAccountLocked() bool {
 func (u *User) IncrementFailedLoginAttempts(maxAttempts int, lockDuration time.Duration) {
 	u.FailedLoginAttempts++
 	u.UpdatedAt = time.Now()
-	
+
 	if u.FailedLoginAttempts >= maxAttempts {
 		lockedUntil := time.Now().Add(lockDuration)
 		u.LockedUntil = &lockedUntil

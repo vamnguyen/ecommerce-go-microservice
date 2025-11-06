@@ -13,13 +13,14 @@ import (
 )
 
 type RefreshTokenModel struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index"`
-	TokenHash string    `gorm:"uniqueIndex;not null"`
-	ExpiresAt time.Time `gorm:"not null;index"`
-	IsRevoked bool      `gorm:"not null;default:false"`
-	CreatedAt time.Time
-	RevokedAt *time.Time
+	ID            uuid.UUID  `gorm:"type:uuid;primaryKey"`
+	UserID        uuid.UUID  `gorm:"type:uuid;not null;index"`
+	TokenHash     string     `gorm:"uniqueIndex;not null"`
+	TokenFamilyID *uuid.UUID `gorm:"type:uuid;index"`
+	ExpiresAt     time.Time  `gorm:"not null;index"`
+	IsRevoked     bool       `gorm:"not null;default:false"`
+	CreatedAt     time.Time
+	RevokedAt     *time.Time
 }
 
 func (RefreshTokenModel) TableName() string {
@@ -96,6 +97,20 @@ func (r *RefreshTokenRepository) RevokeAllByUserID(ctx context.Context, userID u
 	return nil
 }
 
+func (r *RefreshTokenRepository) RevokeByTokenFamilyID(ctx context.Context, familyID uuid.UUID) error {
+	now := time.Now()
+	if err := r.db.WithContext(ctx).
+		Model(&RefreshTokenModel{}).
+		Where("token_family_id = ? AND is_revoked = ?", familyID, false).
+		Updates(map[string]interface{}{
+			"is_revoked": true,
+			"revoked_at": now,
+		}).Error; err != nil {
+		return domainErr.ErrDatabase
+	}
+	return nil
+}
+
 func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 	if err := r.db.WithContext(ctx).
 		Where("expires_at < ?", time.Now()).
@@ -107,24 +122,30 @@ func (r *RefreshTokenRepository) DeleteExpired(ctx context.Context) error {
 
 func (r *RefreshTokenRepository) toModel(token *entity.RefreshToken) *RefreshTokenModel {
 	return &RefreshTokenModel{
-		ID:        token.ID,
-		UserID:    token.UserID,
-		TokenHash: token.TokenHash,
-		ExpiresAt: token.ExpiresAt,
-		IsRevoked: token.IsRevoked,
-		CreatedAt: token.CreatedAt,
-		RevokedAt: token.RevokedAt,
+		ID:            token.ID,
+		UserID:        token.UserID,
+		TokenHash:     token.TokenHash,
+		TokenFamilyID: &token.TokenFamilyID,
+		ExpiresAt:     token.ExpiresAt,
+		IsRevoked:     token.IsRevoked,
+		CreatedAt:     token.CreatedAt,
+		RevokedAt:     token.RevokedAt,
 	}
 }
 
 func (r *RefreshTokenRepository) toEntity(model *RefreshTokenModel) *entity.RefreshToken {
+	var familyID uuid.UUID
+	if model.TokenFamilyID != nil {
+		familyID = *model.TokenFamilyID
+	}
 	return &entity.RefreshToken{
-		ID:        model.ID,
-		UserID:    model.UserID,
-		TokenHash: model.TokenHash,
-		ExpiresAt: model.ExpiresAt,
-		IsRevoked: model.IsRevoked,
-		CreatedAt: model.CreatedAt,
-		RevokedAt: model.RevokedAt,
+		ID:            model.ID,
+		UserID:        model.UserID,
+		TokenHash:     model.TokenHash,
+		TokenFamilyID: familyID,
+		ExpiresAt:     model.ExpiresAt,
+		IsRevoked:     model.IsRevoked,
+		CreatedAt:     model.CreatedAt,
+		RevokedAt:     model.RevokedAt,
 	}
 }

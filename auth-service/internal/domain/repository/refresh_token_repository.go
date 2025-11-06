@@ -14,5 +14,6 @@ type RefreshTokenRepository interface {
 	FindByUserID(ctx context.Context, userID uuid.UUID) ([]*entity.RefreshToken, error)
 	RevokeByTokenHash(ctx context.Context, tokenHash string) error
 	RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error
+	RevokeByTokenFamilyID(ctx context.Context, familyID uuid.UUID) error
 	DeleteExpired(ctx context.Context) error
 }

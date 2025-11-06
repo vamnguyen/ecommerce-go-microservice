@@ -15,6 +15,7 @@ type Config struct {
 	Database    DatabaseConfig
 	JWT         JWTConfig
 	Security    SecurityConfig
+	Cookie      CookieConfig
 }
 
 type ServerConfig struct {
@@ -47,6 +48,12 @@ type SecurityConfig struct {
 	AllowedOrigins      []string
 }
 
+type CookieConfig struct {
+	RefreshTokenName string
+	Secure           bool
+	Domain           string
+}
+
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
@@ -77,6 +84,11 @@ func Load() (*Config, error) {
 			MaxLoginAttempts:    parseInt(getEnv("MAX_LOGIN_ATTEMPTS", "5")),
 			AccountLockDuration: parseDuration(getEnv("ACCOUNT_LOCK_DURATION", "15m")),
 			AllowedOrigins:      parseStringSlice(getEnv("ALLOWED_ORIGINS", "http://localhost:3000")),
+		},
+		Cookie: CookieConfig{
+			RefreshTokenName: getEnv("COOKIE_REFRESH_TOKEN_NAME", "refresh_token"),
+			Secure:           parseBool(getEnv("COOKIE_SECURE", "false")),
+			Domain:           getEnv("COOKIE_DOMAIN", ""),
 		},
 	}
 
@@ -126,4 +138,9 @@ func parseStringSlice(s string) []string {
 		return []string{}
 	}
 	return []string{s}
+}
+
+func parseBool(s string) bool {
+	b, _ := strconv.ParseBool(s)
+	return b
 }

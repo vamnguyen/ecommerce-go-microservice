@@ -14,12 +14,13 @@ import (
 )
 
 type AuthUseCase struct {
-	userRepo         repository.UserRepository
-	refreshTokenRepo repository.RefreshTokenRepository
-	auditLogRepo     repository.AuditLogRepository
-	passwordService  service.PasswordService
-	tokenService     service.TokenService
-	config           AuthConfig
+	userRepo           repository.UserRepository
+	refreshTokenRepo   repository.RefreshTokenRepository
+	tokenBlacklistRepo repository.TokenBlacklistRepository
+	auditLogRepo       repository.AuditLogRepository
+	passwordService    service.PasswordService
+	tokenService       service.TokenService
+	config             AuthConfig
 }
 
 type AuthConfig struct {
@@ -30,18 +31,20 @@ type AuthConfig struct {
 func NewAuthUseCase(
 	userRepo repository.UserRepository,
 	refreshTokenRepo repository.RefreshTokenRepository,
+	tokenBlacklistRepo repository.TokenBlacklistRepository,
 	auditLogRepo repository.AuditLogRepository,
 	passwordService service.PasswordService,
 	tokenService service.TokenService,
 	config AuthConfig,
 ) *AuthUseCase {
 	return &AuthUseCase{
-		userRepo:         userRepo,
-		refreshTokenRepo: refreshTokenRepo,
-		auditLogRepo:     auditLogRepo,
-		passwordService:  passwordService,
-		tokenService:     tokenService,
-		config:           config,
+		userRepo:           userRepo,
+		refreshTokenRepo:   refreshTokenRepo,
+		tokenBlacklistRepo: tokenBlacklistRepo,
+		auditLogRepo:       auditLogRepo,
+		passwordService:    passwordService,
+		tokenService:       tokenService,
+		config:             config,
 	}
 }
 
@@ -138,16 +141,6 @@ func (uc *AuthUseCase) Login(ctx context.Context, req dto.LoginRequest, ipAddres
 	return &dto.AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshPlain,
-		TokenType:    "Bearer",
-		ExpiresIn:    int(uc.tokenService.GetAccessTokenExpiry().Seconds()),
-		User: dto.UserDTO{
-			ID:         user.ID.String(),
-			Email:      user.Email,
-			Role:       string(user.Role),
-			IsVerified: user.IsVerified,
-			IsActive:   user.IsActive,
-			CreatedAt:  user.CreatedAt,
-		},
 	}, nil
 }
 
@@ -166,6 +159,10 @@ func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain string) (*
 	if !token.IsValid() {
 		if token.IsExpired() {
 			return nil, domainErr.ErrTokenExpired
+		}
+		if token.IsRevoked {
+			_ = uc.refreshTokenRepo.RevokeByTokenFamilyID(ctx, token.TokenFamilyID)
+			return nil, domainErr.ErrTokenRevoked
 		}
 		return nil, domainErr.ErrTokenRevoked
 	}
@@ -200,7 +197,7 @@ func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain string) (*
 	}
 
 	expiresAt := time.Now().Add(uc.tokenService.GetRefreshTokenExpiry())
-	newRefreshToken := entity.NewRefreshToken(user.ID, newRefreshHash, expiresAt)
+	newRefreshToken := entity.NewRefreshTokenWithFamily(user.ID, newRefreshHash, expiresAt, token.TokenFamilyID)
 	if err := uc.refreshTokenRepo.Create(ctx, newRefreshToken); err != nil {
 		return nil, domainErr.ErrDatabase
 	}
@@ -211,36 +208,52 @@ func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain string) (*
 	return &dto.RefreshTokenResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshPlain,
-		TokenType:    "Bearer",
-		ExpiresIn:    int(uc.tokenService.GetAccessTokenExpiry().Seconds()),
 	}, nil
 }
 
-func (uc *AuthUseCase) Logout(ctx context.Context, userID string, refreshPlain string, ipAddress, userAgent string) error {
-	if refreshPlain != "" {
-		refreshHash := uc.tokenService.HashToken(refreshPlain)
-		_ = uc.refreshTokenRepo.RevokeByTokenHash(ctx, refreshHash)
-	}
-
-	if userID != "" {
-		userUUID, err := uuid.Parse(userID)
-		if err == nil {
-			auditLog := entity.NewAuditLog(userUUID, entity.AuditActionLogout, ipAddress, userAgent)
-			_ = uc.auditLogRepo.Create(ctx, auditLog)
-		}
-	}
-
-	return nil
-}
-
-func (uc *AuthUseCase) LogoutAll(ctx context.Context, userID string, ipAddress, userAgent string) error {
+func (uc *AuthUseCase) Logout(ctx context.Context, userID string, refreshPlain string, accessToken string, ipAddress, userAgent string) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return domainErr.ErrInvalidInput
 	}
 
+	// Revoke the provided refresh token
+	if refreshPlain != "" {
+		refreshHash := uc.tokenService.HashToken(refreshPlain)
+		_ = uc.refreshTokenRepo.RevokeByTokenHash(ctx, refreshHash)
+	}
+
+	// Blacklist the access token
+	if accessToken != "" {
+		accessHash := uc.tokenService.HashToken(accessToken)
+		expiresAt := time.Now().Add(uc.tokenService.GetAccessTokenExpiry())
+		blacklist := entity.NewTokenBlacklist(accessHash, expiresAt)
+		_ = uc.tokenBlacklistRepo.Add(ctx, blacklist)
+	}
+
+	auditLog := entity.NewAuditLog(userUUID, entity.AuditActionLogout, ipAddress, userAgent)
+	_ = uc.auditLogRepo.Create(ctx, auditLog)
+
+	return nil
+}
+
+func (uc *AuthUseCase) LogoutAll(ctx context.Context, userID string, accessToken string, ipAddress, userAgent string) error {
+	userUUID, err := uuid.Parse(userID)
+	if err != nil {
+		return domainErr.ErrInvalidInput
+	}
+
+	// Revoke all refresh tokens of the user
 	if err := uc.refreshTokenRepo.RevokeAllByUserID(ctx, userUUID); err != nil {
 		return domainErr.ErrDatabase
+	}
+
+	// Blacklist the access token
+	if accessToken != "" {
+		accessHash := uc.tokenService.HashToken(accessToken)
+		expiresAt := time.Now().Add(uc.tokenService.GetAccessTokenExpiry())
+		blacklist := entity.NewTokenBlacklist(accessHash, expiresAt)
+		_ = uc.tokenBlacklistRepo.Add(ctx, blacklist)
 	}
 
 	auditLog := entity.NewAuditLog(userUUID, entity.AuditActionLogout, ipAddress, userAgent)

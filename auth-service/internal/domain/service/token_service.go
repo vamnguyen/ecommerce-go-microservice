@@ -3,9 +3,10 @@ package service
 import "time"
 
 type TokenClaims struct {
-	UserID string
-	Email  string
-	Role   string
+	UserID   string
+	Email    string
+	Role     string
+	IssuedAt int64
 }
 
 type TokenService interface {

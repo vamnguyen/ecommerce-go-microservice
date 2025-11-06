@@ -4,18 +4,23 @@ import (
 	"net/http"
 	"strings"
 
+	"auth-service/internal/domain/repository"
 	"auth-service/internal/domain/service"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthMiddleware struct {
-	tokenService service.TokenService
+	tokenService       service.TokenService
+	tokenBlacklistRepo repository.TokenBlacklistRepository
+	userRepo           repository.UserRepository
 }
 
-func NewAuthMiddleware(tokenService service.TokenService) *AuthMiddleware {
+func NewAuthMiddleware(tokenService service.TokenService, tokenBlacklistRepo repository.TokenBlacklistRepository, userRepo repository.UserRepository) *AuthMiddleware {
 	return &AuthMiddleware{
-		tokenService: tokenService,
+		tokenService:       tokenService,
+		tokenBlacklistRepo: tokenBlacklistRepo,
+		userRepo:           userRepo,
 	}
 }
 
@@ -43,9 +48,16 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 			return
 		}
 
+		tokenHash := m.tokenService.HashToken(token)
+		isBlacklisted, err := m.tokenBlacklistRepo.IsBlacklisted(c.Request.Context(), tokenHash)
+		if err == nil && isBlacklisted {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "token has been revoked"})
+			c.Abort()
+			return
+		}
+
 		c.Set("userID", claims.UserID)
-		c.Set("email", claims.Email)
-		c.Set("role", claims.Role)
+		c.Set("accessToken", token)
 
 		c.Next()
 	}
