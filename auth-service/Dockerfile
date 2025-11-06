@@ -20,6 +20,6 @@ WORKDIR /root/
 COPY --from=builder /app/main .
 COPY --from=builder /app/.env.example .env.example
 
-EXPOSE 8080
+EXPOSE 9001
 
 CMD ["./main"]

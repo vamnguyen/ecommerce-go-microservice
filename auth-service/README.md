@@ -39,12 +39,14 @@ auth-service/
 ## Features
 
 - **User Registration & Authentication**
+
   - Email/password registration
   - Login with credential validation
   - Account lockout after failed attempts
   - Password strength validation
 
 - **Token Management**
+
   - JWT access tokens (short-lived)
   - Refresh tokens (long-lived)
   - Token rotation on refresh
@@ -52,6 +54,7 @@ auth-service/
   - Revoke all user tokens (logout all)
 
 - **Security**
+
   - Bcrypt password hashing
   - Account lockout mechanism
   - Audit logging
@@ -88,11 +91,13 @@ make docker-down
 ### Local Development
 
 1. **Setup Database**
+
    ```bash
    docker-compose up -d postgres
    ```
 
 2. **Configure Environment**
+
    ```bash
    cp .env.example .env
    # Edit .env with your settings
@@ -123,8 +128,9 @@ make docker-down
 ## API Examples
 
 ### Register
+
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/register \
+curl -X POST http://localhost:9001/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -133,8 +139,9 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 ```
 
 ### Login
+
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
+curl -X POST http://localhost:9001/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "user@example.com",
@@ -143,8 +150,9 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 ```
 
 ### Get Current User
+
 ```bash
-curl -X GET http://localhost:8080/api/v1/auth/me \
+curl -X GET http://localhost:9001/api/v1/auth/me \
   -H "Authorization: Bearer <access_token>"
 ```
 
@@ -154,7 +162,7 @@ Key environment variables:
 
 ```env
 # Server
-PORT=8080
+PORT=9001
 
 # Database
 DB_HOST=localhost
@@ -219,16 +227,19 @@ The service uses PostgreSQL with the following tables:
 ## Security Features
 
 1. **Password Security**
+
    - Minimum 8 characters
    - Must contain uppercase, lowercase, number, and special character
    - Bcrypt hashing with cost factor 10
 
 2. **Account Protection**
+
    - Failed login tracking
    - Automatic account lockout
    - Configurable lockout duration
 
 3. **Token Security**
+
    - Short-lived access tokens
    - Refresh token rotation
    - Token revocation support

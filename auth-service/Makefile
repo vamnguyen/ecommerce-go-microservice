@@ -1,8 +1,9 @@
-.PHONY: help run build test clean docker-up docker-down migrate
+.PHONY: help run dev build test clean docker-up docker-down migrate
 
 help:
 	@echo "Available commands:"
 	@echo "  make run          - Run the application"
+	@echo "  make dev          - Run with Air (live-reload)"
 	@echo "  make build        - Build the application"
 	@echo "  make test         - Run tests"
 	@echo "  make clean        - Clean build artifacts"
@@ -13,6 +14,9 @@ help:
 run:
 	go run cmd/server/main.go
 
+dev:
+	$(shell go env GOPATH)/bin/air
+
 build:
 	go build -o bin/auth-service cmd/server/main.go
 
@@ -21,7 +25,7 @@ test:
 	go tool cover -html=coverage.out -o coverage.html
 
 clean:
-	rm -rf bin/
+	rm -rf bin/ tmp/
 	rm -f coverage.out coverage.html
 
 docker-up:

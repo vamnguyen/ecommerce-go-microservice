@@ -21,13 +21,14 @@ docker-compose logs -f auth-service
 docker-compose down
 ```
 
-The service will be available at `http://localhost:8080`
+The service will be available at `http://localhost:9001`
 
 ## Method 2: Local Development
 
 ### 1. Setup Database
 
 Start PostgreSQL:
+
 ```bash
 docker-compose up -d auth-db
 ```
@@ -41,6 +42,7 @@ cp .env.example .env
 ```
 
 Edit `.env` with your settings:
+
 ```env
 DB_HOST=localhost
 DB_PORT=5432
@@ -71,10 +73,11 @@ go run cmd/server/main.go
 ### 1. Health Check
 
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:9001/health
 ```
 
 Expected response:
+
 ```json
 {
   "status": "ok",
@@ -85,7 +88,7 @@ Expected response:
 ### 2. Register User
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/register \
+curl -X POST http://localhost:9001/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -94,6 +97,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 ```
 
 **Password Requirements**:
+
 - Minimum 8 characters
 - At least 1 uppercase letter
 - At least 1 lowercase letter
@@ -101,6 +105,7 @@ curl -X POST http://localhost:8080/api/v1/auth/register \
 - At least 1 special character
 
 Expected response:
+
 ```json
 {
   "message": "user registered successfully"
@@ -110,7 +115,7 @@ Expected response:
 ### 3. Login
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
+curl -X POST http://localhost:9001/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -119,6 +124,7 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 ```
 
 Expected response:
+
 ```json
 {
   "access_token": "eyJhbGc...",
@@ -139,14 +145,14 @@ Expected response:
 ### 4. Get Current User (Protected)
 
 ```bash
-curl -X GET http://localhost:8080/api/v1/auth/me \
+curl -X GET http://localhost:9001/api/v1/auth/me \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 ### 5. Refresh Token
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/refresh \
+curl -X POST http://localhost:9001/api/v1/auth/refresh \
   -H "Content-Type: application/json" \
   -d '{
     "refresh_token": "YOUR_REFRESH_TOKEN"
@@ -156,7 +162,7 @@ curl -X POST http://localhost:8080/api/v1/auth/refresh \
 ### 6. Change Password
 
 ```bash
-curl -X PUT http://localhost:8080/api/v1/auth/change-password \
+curl -X PUT http://localhost:9001/api/v1/auth/change-password \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -168,7 +174,7 @@ curl -X PUT http://localhost:8080/api/v1/auth/change-password \
 ### 7. Logout
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/logout \
+curl -X POST http://localhost:9001/api/v1/auth/logout \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -179,22 +185,22 @@ curl -X POST http://localhost:8080/api/v1/auth/logout \
 ### 8. Logout All Devices
 
 ```bash
-curl -X POST http://localhost:8080/api/v1/auth/logout-all \
+curl -X POST http://localhost:9001/api/v1/auth/logout-all \
   -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
 ```
 
 ## API Endpoints Summary
 
-| Method | Endpoint | Auth Required | Description |
-|--------|----------|---------------|-------------|
-| GET | `/health` | No | Health check |
-| POST | `/api/v1/auth/register` | No | Register new user |
-| POST | `/api/v1/auth/login` | No | Login user |
-| POST | `/api/v1/auth/refresh` | No | Refresh access token |
-| GET | `/api/v1/auth/me` | Yes | Get current user |
-| POST | `/api/v1/auth/logout` | Yes | Logout current session |
-| POST | `/api/v1/auth/logout-all` | Yes | Logout all sessions |
-| PUT | `/api/v1/auth/change-password` | Yes | Change password |
+| Method | Endpoint                       | Auth Required | Description            |
+| ------ | ------------------------------ | ------------- | ---------------------- |
+| GET    | `/health`                      | No            | Health check           |
+| POST   | `/api/v1/auth/register`        | No            | Register new user      |
+| POST   | `/api/v1/auth/login`           | No            | Login user             |
+| POST   | `/api/v1/auth/refresh`         | No            | Refresh access token   |
+| GET    | `/api/v1/auth/me`              | Yes           | Get current user       |
+| POST   | `/api/v1/auth/logout`          | Yes           | Logout current session |
+| POST   | `/api/v1/auth/logout-all`      | Yes           | Logout all sessions    |
+| PUT    | `/api/v1/auth/change-password` | Yes           | Change password        |
 
 ## Development Commands
 
@@ -261,11 +267,13 @@ SELECT id, user_id, action, ip_address, created_at FROM audit_logs ORDER BY crea
 ### Connection Refused to Database
 
 Check if PostgreSQL is running:
+
 ```bash
 docker-compose ps
 ```
 
 Restart database:
+
 ```bash
 docker-compose restart auth-db
 ```
@@ -273,19 +281,22 @@ docker-compose restart auth-db
 ### Port Already in Use
 
 Change port in `.env`:
+
 ```env
 PORT=8081
 ```
 
 Or in `docker-compose.yml`:
+
 ```yaml
 ports:
-  - "8081:8080"
+  - "8081:9001"
 ```
 
 ### JWT Secret Not Set
 
 Make sure `.env` has `JWT_SECRET`:
+
 ```env
 JWT_SECRET=your-secret-key-at-least-32-characters-long
 ```
@@ -293,6 +304,7 @@ JWT_SECRET=your-secret-key-at-least-32-characters-long
 ### Migration Issues
 
 Drop and recreate database:
+
 ```bash
 docker-compose down -v
 docker-compose up -d
@@ -301,15 +313,18 @@ docker-compose up -d
 ## Testing with Postman
 
 1. Import the following as environment variables:
-   - `BASE_URL`: `http://localhost:8080`
+
+   - `BASE_URL`: `http://localhost:9001`
    - `ACCESS_TOKEN`: (will be set after login)
    - `REFRESH_TOKEN`: (will be set after login)
 
 2. Create requests:
+
    - Set `Authorization` header: `Bearer {{ACCESS_TOKEN}}`
    - Set `Content-Type` header: `application/json`
 
 3. Use Tests tab to save tokens:
+
 ```javascript
 // After login request
 pm.environment.set("ACCESS_TOKEN", pm.response.json().access_token);
