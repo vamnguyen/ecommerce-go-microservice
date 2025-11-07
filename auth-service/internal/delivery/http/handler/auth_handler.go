@@ -76,7 +76,10 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	result, err := h.authUseCase.RefreshToken(c.Request.Context(), refreshToken)
+	accessToken, _ := c.Get("accessToken")
+	accessTokenStr, _ := accessToken.(string)
+
+	result, err := h.authUseCase.RefreshToken(c.Request.Context(), refreshToken, accessTokenStr, c.ClientIP(), c.GetHeader("User-Agent"))
 	if err != nil {
 		h.clearRefreshTokenCookie(c)
 		h.handleError(c, err)

@@ -21,7 +21,3 @@ func NewTokenBlacklist(tokenHash string, expiresAt time.Time) *TokenBlacklist {
 		CreatedAt: time.Now(),
 	}
 }
-
-func (tb *TokenBlacklist) IsExpired() bool {
-	return time.Now().After(tb.ExpiresAt)
-}

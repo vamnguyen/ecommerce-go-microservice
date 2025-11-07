@@ -144,7 +144,7 @@ func (uc *AuthUseCase) Login(ctx context.Context, req dto.LoginRequest, ipAddres
 	}, nil
 }
 
-func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain string) (*dto.RefreshTokenResponse, error) {
+func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain, accessToken, ipAddress, userAgent string) (*dto.RefreshTokenResponse, error) {
 	if refreshPlain == "" {
 		return nil, domainErr.ErrMissingToken
 	}
@@ -157,14 +157,7 @@ func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain string) (*
 	}
 
 	if !token.IsValid() {
-		if token.IsExpired() {
-			return nil, domainErr.ErrTokenExpired
-		}
-		if token.IsRevoked {
-			_ = uc.refreshTokenRepo.RevokeByTokenFamilyID(ctx, token.TokenFamilyID)
-			return nil, domainErr.ErrTokenRevoked
-		}
-		return nil, domainErr.ErrTokenRevoked
+		return nil, domainErr.ErrInvalidToken
 	}
 
 	user, err := uc.userRepo.FindByID(ctx, token.UserID)
@@ -172,12 +165,17 @@ func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain string) (*
 		return nil, domainErr.ErrUserNotFound
 	}
 
-	if !user.IsActive {
-		return nil, domainErr.ErrAccountInactive
-	}
-
+	// Revoke the used refresh token
 	if err := uc.refreshTokenRepo.RevokeByTokenHash(ctx, refreshHash); err != nil {
 		return nil, domainErr.ErrDatabase
+	}
+
+	// Blacklist the access token
+	if accessToken != "" {
+		accessHash := uc.tokenService.HashToken(accessToken)
+		expiresAt := time.Now().Add(uc.tokenService.GetAccessTokenExpiry())
+		blacklist := entity.NewTokenBlacklist(accessHash, expiresAt)
+		_ = uc.tokenBlacklistRepo.Add(ctx, blacklist)
 	}
 
 	claims := service.TokenClaims{
@@ -211,7 +209,7 @@ func (uc *AuthUseCase) RefreshToken(ctx context.Context, refreshPlain string) (*
 	}, nil
 }
 
-func (uc *AuthUseCase) Logout(ctx context.Context, userID string, refreshPlain string, accessToken string, ipAddress, userAgent string) error {
+func (uc *AuthUseCase) Logout(ctx context.Context, userID string, refreshPlain, accessToken, ipAddress, userAgent string) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return domainErr.ErrInvalidInput
@@ -237,7 +235,7 @@ func (uc *AuthUseCase) Logout(ctx context.Context, userID string, refreshPlain s
 	return nil
 }
 
-func (uc *AuthUseCase) LogoutAll(ctx context.Context, userID string, accessToken string, ipAddress, userAgent string) error {
+func (uc *AuthUseCase) LogoutAll(ctx context.Context, userID, accessToken, ipAddress, userAgent string) error {
 	userUUID, err := uuid.Parse(userID)
 	if err != nil {
 		return domainErr.ErrInvalidInput

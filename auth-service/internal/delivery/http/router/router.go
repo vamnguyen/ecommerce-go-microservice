@@ -60,11 +60,11 @@ func (r *Router) setupRoutes() {
 		{
 			auth.POST("/register", r.authHandler.Register)
 			auth.POST("/login", r.authHandler.Login)
-			auth.POST("/refresh", r.authHandler.RefreshToken)
 
 			protected := auth.Group("")
 			protected.Use(r.authMiddleware.RequireAuth())
 			{
+				protected.POST("/refresh", r.authHandler.RefreshToken)
 				protected.POST("/logout", r.authHandler.Logout)
 				protected.POST("/logout-all", r.authHandler.LogoutAll)
 				protected.GET("/me", r.authHandler.GetMe)

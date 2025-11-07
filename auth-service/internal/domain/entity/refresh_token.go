@@ -48,13 +48,3 @@ func (rt *RefreshToken) IsValid() bool {
 	}
 	return time.Now().Before(rt.ExpiresAt)
 }
-
-func (rt *RefreshToken) Revoke() {
-	rt.IsRevoked = true
-	now := time.Now()
-	rt.RevokedAt = &now
-}
-
-func (rt *RefreshToken) IsExpired() bool {
-	return time.Now().After(rt.ExpiresAt)
-}
