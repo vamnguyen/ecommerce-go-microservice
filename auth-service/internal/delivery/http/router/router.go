@@ -52,12 +52,11 @@ func (r *Router) Setup() *gin.Engine {
 }
 
 func (r *Router) setupRoutes() {
-	r.engine.GET("/health", r.healthHandler.Health)
-
 	v1 := r.engine.Group("/api/v1")
 	{
 		auth := v1.Group("/auth")
 		{
+			auth.GET("/health", r.healthHandler.Health)
 			auth.POST("/register", r.authHandler.Register)
 			auth.POST("/login", r.authHandler.Login)
 

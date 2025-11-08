@@ -1,0 +1,52 @@
+# Định nghĩa một mạng chung cho tất cả các service.
+# Điều này cho phép chúng giao tiếp với nhau qua tên service (ví dụ: http://auth-service:9001).
+networks:
+  ecommerce-net:
+    driver: bridge
+
+services:
+  # --- Database Auth Service ---
+  auth-db:
+    image: postgres:16-alpine
+    container_name: auth-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=auth_db
+    ports:
+      - "5432:5432"
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+
+  # --- Kong API Gateway (DB-less) ---
+  kong:
+    image: kong:3.4
+    container_name: kong
+    environment:
+      - KONG_DATABASE=off
+      # Chỉ định đường dẫn tới file cấu hình định tuyến của Kong
+      - KONG_DECLARATIVE_CONFIG=/etc/kong/kong.yml
+      # Bật chế độ kiểm tra và tự động reload khi file config thay đổi
+      - KONG_DECLARATIVE_CONFIG_RELOAD_INTERVAL=10s
+      - KONG_PROXY_LISTEN=0.0.0.0:8000
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+    ports:
+      - "8000:8000" # Cổng chính cho client truy cập vào hệ thống.
+      - "8001:8001" # Cổng quản trị của Kong (để cấu hình, xem status...).
+    volumes:
+      - ./api-gateway/kong.yml:/etc/kong/kong.yml # Mount file cấu hình định tuyến của Kong.
+    networks:
+      - ecommerce-net
+    restart: unless-stopped
+
+# Định nghĩa volumes để lưu trữ dữ liệu persistent.
+volumes:
+  auth-db-data:
+  kong-db-data:
