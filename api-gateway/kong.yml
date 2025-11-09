@@ -2,9 +2,18 @@ _format_version: "3.0"
 
 services:
   - name: auth-service
-    url: http://host.docker.internal:9001
+    protocol: grpc
+    host: host.docker.internal
+    port: 9002
     routes:
-      - name: auth-service-routes
-        strip_path: false
+      - name: auth-routes
+        protocols:
+          - http
+          - https
         paths:
           - /api/v1/auth
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+            config:
+              proto: /etc/kong/proto/auth.proto

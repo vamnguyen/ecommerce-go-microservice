@@ -20,6 +20,7 @@ type Config struct {
 
 type ServerConfig struct {
 	Port            string
+	GRPCPort        string
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
@@ -61,6 +62,7 @@ func Load() (*Config, error) {
 		Environment: getEnv("ENVIRONMENT", "development"),
 		Server: ServerConfig{
 			Port:            getEnv("PORT", "9001"),
+			GRPCPort:        getEnv("GRPC_PORT", "9002"),
 			ReadTimeout:     parseDuration(getEnv("SERVER_READ_TIMEOUT", "10s")),
 			WriteTimeout:    parseDuration(getEnv("SERVER_WRITE_TIMEOUT", "10s")),
 			ShutdownTimeout: parseDuration(getEnv("SERVER_SHUTDOWN_TIMEOUT", "5s")),

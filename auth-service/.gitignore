@@ -42,3 +42,6 @@ logs/
 # Database
 *.db
 *.sqlite
+
+# Generated files
+gen/

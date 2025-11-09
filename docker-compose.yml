@@ -42,6 +42,7 @@ services:
       - "8001:8001" # Cổng quản trị của Kong (để cấu hình, xem status...).
     volumes:
       - ./api-gateway/kong.yml:/etc/kong/kong.yml # Mount file cấu hình định tuyến của Kong.
+      - ./auth-service/proto:/etc/kong/proto # Mount toàn bộ thư mục proto bao gồm google/api
     networks:
       - ecommerce-net
     restart: unless-stopped
