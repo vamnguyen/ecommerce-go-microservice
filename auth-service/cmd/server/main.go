@@ -91,13 +91,13 @@ func main() {
 	proto.RegisterAuthServiceServer(grpcServer, grpcHandler)
 
 	// Chạy cả hai server đồng thời
-	// go func() {
-	// 	log.Info("starting HTTP server", zap.String("port", cfg.Server.Port))
-	// 	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-	// 		log.Error("failed to start HTTP server", zap.Error(err))
-	// 		panic(err)
-	// 	}
-	// }()
+	go func() {
+		log.Info("starting HTTP server", zap.String("port", cfg.Server.Port))
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Error("failed to start HTTP server", zap.Error(err))
+			panic(err)
+		}
+	}()
 
 	go func() {
 		grpcListener, err := net.Listen("tcp", ":"+cfg.Server.GRPCPort)
