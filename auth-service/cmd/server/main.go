@@ -4,18 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 
 	"auth-service/gen/go/proto"
 	"auth-service/internal/application/usecase"
 	grpcHandler "auth-service/internal/delivery/grpc/handler"
-	"auth-service/internal/delivery/http/handler"
-	"auth-service/internal/delivery/http/middleware"
-	"auth-service/internal/delivery/http/router"
+	"auth-service/internal/delivery/grpc/interceptor"
 	"auth-service/internal/infrastructure/config"
 	"auth-service/internal/infrastructure/logger"
 	"auth-service/internal/infrastructure/persistence/postgres"
@@ -72,39 +68,21 @@ func main() {
 		},
 	)
 
-	// Khởi tạo HTTP server
-	authHandler := handler.NewAuthHandler(authUseCase, log, cfg)
-	healthHandler := handler.NewHealthHandler()
-	authMiddleware := middleware.NewAuthMiddleware(tokenService, tokenBlacklistRepo, userRepo)
-
-	r := router.NewRouter(authHandler, healthHandler, authMiddleware, log, cfg)
-	httpServer := &http.Server{
-		Addr:         ":" + cfg.Server.Port,
-		Handler:      r.Setup(),
-		ReadTimeout:  cfg.Server.ReadTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
-	}
-
-	// Khởi tạo gRPC server
 	grpcHandler := grpcHandler.NewGRPCHandler(*authUseCase)
-	grpcServer := grpc.NewServer()
+	
+	tokenValidator := interceptor.NewTokenServiceAdapter(tokenService)
+	grpcServer := grpc.NewServer(
+		grpc.UnaryInterceptor(interceptor.NewAuthInterceptor(tokenValidator)),
+	)
 	proto.RegisterAuthServiceServer(grpcServer, grpcHandler)
 
-	// Chạy cả hai server đồng thời
-	go func() {
-		log.Info("starting HTTP server", zap.String("port", cfg.Server.Port))
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Error("failed to start HTTP server", zap.Error(err))
-			panic(err)
-		}
-	}()
+	grpcListener, err := net.Listen("tcp", ":"+cfg.Server.GRPCPort)
+	if err != nil {
+		log.Error("failed to listen for gRPC", zap.Error(err))
+		panic(err)
+	}
 
 	go func() {
-		grpcListener, err := net.Listen("tcp", ":"+cfg.Server.GRPCPort)
-		if err != nil {
-			log.Error("failed to listen for gRPC", zap.Error(err))
-			panic(err)
-		}
 		log.Info("starting gRPC server", zap.String("port", cfg.Server.GRPCPort))
 		if err := grpcServer.Serve(grpcListener); err != nil {
 			log.Error("failed to start gRPC server", zap.Error(err))
@@ -112,36 +90,27 @@ func main() {
 		}
 	}()
 
-	// Xử lý Graceful Shutdown cho cả hai server
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Info("shutting down servers...")
+	log.Info("shutting down gRPC server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
 	defer cancel()
 
-	// Sử dụng WaitGroup để chờ cả hai server shutdown xong
-	var wg sync.WaitGroup
-	wg.Add(2)
-
+	done := make(chan struct{})
 	go func() {
-		defer wg.Done()
-		log.Info("shutting down gRPC server...")
 		grpcServer.GracefulStop()
-		log.Info("gRPC server stopped")
+		close(done)
 	}()
 
-	go func() {
-		defer wg.Done()
-		log.Info("shutting down HTTP server...")
-		if err := httpServer.Shutdown(ctx); err != nil {
-			log.Error("HTTP server forced to shutdown", zap.Error(err))
-		}
-		log.Info("HTTP server stopped")
-	}()
+	select {
+	case <-done:
+		log.Info("gRPC server stopped gracefully")
+	case <-ctx.Done():
+		log.Warn("gRPC server forced to shutdown")
+	}
 
-	wg.Wait()
-	log.Info("all servers stopped gracefully")
+	log.Info("server stopped")
 }

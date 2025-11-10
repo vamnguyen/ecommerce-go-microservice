@@ -4,13 +4,13 @@ import (
 	"auth-service/gen/go/proto"
 	"auth-service/internal/application/dto"
 	"auth-service/internal/application/usecase"
+	"auth-service/internal/delivery/grpc/interceptor"
 	"context"
 )
 
-// GRPCHandler triển khai interface AuthServiceServer được sinh ra bởi protoc.
 type GRPCHandler struct {
-	proto.UnimplementedAuthServiceServer // Bắt buộc phải có để tương thích về phía trước
-	authUsecase                          usecase.AuthUseCase
+	proto.UnimplementedAuthServiceServer
+	authUsecase usecase.AuthUseCase
 }
 
 func NewGRPCHandler(authUsecase usecase.AuthUseCase) *GRPCHandler {
@@ -43,7 +43,10 @@ func (h *GRPCHandler) Login(ctx context.Context, req *proto.LoginRequest) (*prot
 		Password: req.GetPassword(),
 	}
 
-	result, err := h.authUsecase.Login(ctx, loginDTO, req.GetIpAddress(), req.GetUserAgent())
+	ipAddress := interceptor.GetClientIPFromContext(ctx)
+	userAgent := interceptor.GetUserAgentFromContext(ctx)
+
+	result, err := h.authUsecase.Login(ctx, loginDTO, ipAddress, userAgent)
 	if err != nil {
 		return nil, toGRPCError(err)
 	}
@@ -52,4 +55,94 @@ func (h *GRPCHandler) Login(ctx context.Context, req *proto.LoginRequest) (*prot
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 	}, nil
+}
+
+func (h *GRPCHandler) RefreshToken(ctx context.Context, req *proto.RefreshTokenRequest) (*proto.RefreshTokenResponse, error) {
+	ipAddress := interceptor.GetClientIPFromContext(ctx)
+	userAgent := interceptor.GetUserAgentFromContext(ctx)
+
+	result, err := h.authUsecase.RefreshToken(ctx, req.GetRefreshToken(), req.GetAccessToken(), ipAddress, userAgent)
+	if err != nil {
+		return nil, toGRPCError(err)
+	}
+
+	return &proto.RefreshTokenResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+	}, nil
+}
+
+func (h *GRPCHandler) Logout(ctx context.Context, req *proto.LogoutRequest) (*proto.LogoutResponse, error) {
+	userID, err := interceptor.GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ipAddress := interceptor.GetClientIPFromContext(ctx)
+	userAgent := interceptor.GetUserAgentFromContext(ctx)
+
+	accessToken := ""
+
+	if err := h.authUsecase.Logout(ctx, userID, req.GetRefreshToken(), accessToken, ipAddress, userAgent); err != nil {
+		return nil, toGRPCError(err)
+	}
+
+	return &proto.LogoutResponse{}, nil
+}
+
+func (h *GRPCHandler) LogoutAll(ctx context.Context, req *proto.LogoutAllRequest) (*proto.LogoutAllResponse, error) {
+	userID, err := interceptor.GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ipAddress := interceptor.GetClientIPFromContext(ctx)
+	userAgent := interceptor.GetUserAgentFromContext(ctx)
+
+	accessToken := ""
+
+	if err := h.authUsecase.LogoutAll(ctx, userID, accessToken, ipAddress, userAgent); err != nil {
+		return nil, toGRPCError(err)
+	}
+
+	return &proto.LogoutAllResponse{}, nil
+}
+
+func (h *GRPCHandler) GetMe(ctx context.Context, req *proto.GetMeRequest) (*proto.GetMeResponse, error) {
+	userID, err := interceptor.GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	user, err := h.authUsecase.GetMe(ctx, userID)
+	if err != nil {
+		return nil, toGRPCError(err)
+	}
+
+	return &proto.GetMeResponse{
+		Id:         user.ID,
+		Email:      user.Email,
+		Role:       user.Role,
+		IsVerified: user.IsVerified,
+		IsActive:   user.IsActive,
+		CreatedAt:  user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}, nil
+}
+
+func (h *GRPCHandler) ChangePassword(ctx context.Context, req *proto.ChangePasswordRequest) (*proto.ChangePasswordResponse, error) {
+	userID, err := interceptor.GetUserIDFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	changePasswordDTO := dto.ChangePasswordRequest{
+		OldPassword: req.GetOldPassword(),
+		NewPassword: req.GetNewPassword(),
+	}
+
+	if err := h.authUsecase.ChangePassword(ctx, userID, changePasswordDTO); err != nil {
+		return nil, toGRPCError(err)
+	}
+
+	return &proto.ChangePasswordResponse{Message: "password changed successfully"}, nil
 }

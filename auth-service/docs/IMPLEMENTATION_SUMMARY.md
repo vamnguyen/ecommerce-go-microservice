@@ -1,432 +1,235 @@
-# Auth Service - Implementation Summary
+# Implementation Summary - Kong JWT Authentication
 
-## Project Overview
+## 🎯 Objective
+Implement API Gateway JWT validation pattern để:
+- Kong Gateway validate JWT thay vì auth-service
+- Auth-service chỉ chạy gRPC (không còn HTTP)
+- Giảm load cho auth-service (không phải validate mọi request)
+- Microservices nhận user_id từ metadata (không cần validate JWT)
 
-Đã hoàn thành việc xây dựng Auth Service mới sử dụng Clean Architecture, thay thế cho phiên bản cũ (auth-service-old-version).
+## ✅ Changes Made
 
-## What Was Built
+### 1. Auth Service - Proto Updates
+**File**: `auth-service/proto/auth.proto`
+- ✅ Added gRPC methods:
+  - `RefreshToken` - Refresh access token
+  - `Logout` - Logout single device
+  - `LogoutAll` - Logout all devices
+  - `GetMe` - Get current user info
+  - `ChangePassword` - Change user password
+- ✅ Removed `ip_address` and `user_agent` from `LoginRequest` (Kong will inject via headers)
+- ✅ Added request/response messages for all new methods
 
-### ✅ Complete Clean Architecture Structure
+### 2. Auth Service - gRPC Interceptor
+**File**: `auth-service/internal/delivery/grpc/interceptor/auth_interceptor.go` (NEW)
+- ✅ Extract `x-user-id`, `x-user-email` from gRPC metadata
+- ✅ Extract `x-forwarded-for`, `user-agent` for audit logs
+- ✅ Public methods bypass authentication (Register, Login, HealthCheck)
+- ✅ Protected methods require `x-user-id` in metadata
+- ✅ Helper functions: `GetUserIDFromContext()`, `GetClientIPFromContext()`, etc.
 
+### 3. Auth Service - gRPC Handler
+**File**: `auth-service/internal/delivery/grpc/handler/grpc_handler.go`
+- ✅ Implemented all new gRPC methods
+- ✅ Use interceptor helpers to get user_id from context
+- ✅ Removed JWT validation logic (Kong handles it)
+- ✅ Updated error handling to use existing `toGRPCError()` function
+
+**File**: `auth-service/internal/delivery/grpc/handler/error_handler.go`
+- ✅ Added `ErrMissingToken` to error mapping
+
+### 4. Auth Service - Main Server
+**File**: `auth-service/cmd/server/main.go`
+- ✅ Removed HTTP server completely
+- ✅ Only gRPC server on port 9002
+- ✅ Added auth interceptor to gRPC server
+- ✅ Simplified graceful shutdown (single server)
+- ✅ Removed imports: `net/http`, `sync`, HTTP delivery packages
+
+### 5. Auth Service - Cleanup
+- ✅ Deleted entire `internal/delivery/http` folder (handlers, middleware, router)
+- ✅ Regenerated proto files with new methods
+
+### 6. Kong Gateway Configuration
+**File**: `api-gateway/kong.yml`
+- ✅ Added JWT consumer with shared secret
+  ```yaml
+  consumers:
+    - username: system
+      jwt_secrets:
+        - key: system
+          secret: your-secret-key-change-this-in-production
+          algorithm: HS256
+  ```
+
+- ✅ Split routes into public and protected:
+  - **Public routes**: `/register`, `/login`, `/health` - No JWT
+  - **Protected routes**: `/refresh`, `/logout`, `/logout-all`, `/me`, `/change-password` - Require JWT
+
+- ✅ JWT Plugin on protected routes:
+  ```yaml
+  - name: jwt
+    config:
+      secret_is_base64: false
+      claims_to_verify: [exp]
+      key_claim_name: user_id
+  ```
+
+- ✅ Request Transformer to inject headers:
+  ```yaml
+  - name: request-transformer
+    config:
+      add:
+        headers:
+          - x-user-id:$(claims.user_id)
+          - x-user-email:$(claims.email)
+  ```
+
+- ✅ CORS plugin for both public and protected routes
+
+## 🏗️ Architecture Flow
+
+### Before (Old Approach)
 ```
-auth-service/
-├── cmd/server/                      # Application entry point
-├── internal/
-│   ├── domain/                      # Business logic core
-│   │   ├── entity/                  # Domain entities (User, RefreshToken, AuditLog)
-│   │   ├── repository/              # Repository interfaces
-│   │   ├── service/                 # Service interfaces
-│   │   └── errors/                  # Domain errors
-│   ├── application/                 # Use cases
-│   │   ├── dto/                     # Data transfer objects
-│   │   └── usecase/                 # Business workflows
-│   ├── infrastructure/              # Technical implementations
-│   │   ├── config/                  # Configuration management
-│   │   ├── logger/                  # Zap logger
-│   │   ├── security/                # JWT & Password services
-│   │   └── persistence/postgres/    # Database repositories
-│   └── delivery/http/              # HTTP layer
-│       ├── handler/                 # Request handlers
-│       ├── middleware/              # HTTP middleware
-│       └── router/                  # Route definitions
-├── .env.example                     # Environment template
-├── docker-compose.yml               # Docker setup
-├── Dockerfile                       # Container image
-├── Makefile                         # Development commands
-├── README.md                        # Main documentation
-├── ARCHITECTURE.md                  # Architecture details
-└── QUICKSTART.md                    # Quick start guide
-```
-
-## Core Features Implemented
-
-### 1. Authentication & Authorization
-
-- ✅ User registration with validation
-- ✅ Email/password login
-- ✅ JWT access tokens (short-lived, 15 minutes)
-- ✅ Refresh tokens (long-lived, 30 days)
-- ✅ Token refresh with rotation
-- ✅ Logout (single session)
-- ✅ Logout all devices
-- ✅ Get current user info
-- ✅ Change password
-
-### 2. Security Features
-
-- ✅ Bcrypt password hashing
-- ✅ Password strength validation (8+ chars, uppercase, lowercase, number, special char)
-- ✅ Failed login tracking
-- ✅ Account lockout (5 failed attempts, 15 minutes)
-- ✅ Refresh token rotation
-- ✅ Token revocation
-- ✅ Security audit logging
-
-### 3. Domain Entities
-
-#### User Entity
-
-```go
-type User struct {
-    ID                  uuid.UUID
-    Email               string
-    PasswordHash        string
-    Role                Role
-    IsVerified          bool
-    IsActive            bool
-    FailedLoginAttempts int
-    LockedUntil         *time.Time
-    LastLoginAt         *time.Time
-    LastLoginIP         string
-    CreatedAt           time.Time
-    UpdatedAt           time.Time
-}
-```
-
-Business methods:
-
-- `IsAccountLocked()` - Check if account is locked
-- `IncrementFailedLoginAttempts()` - Track failed logins
-- `ResetFailedLoginAttempts()` - Reset after successful login
-- `UpdateLastLogin()` - Track login activity
-- `UpdatePassword()` - Change password
-- `Verify()` - Mark email as verified
-
-#### RefreshToken Entity
-
-```go
-type RefreshToken struct {
-    ID        uuid.UUID
-    UserID    uuid.UUID
-    TokenHash string
-    ExpiresAt time.Time
-    IsRevoked bool
-    CreatedAt time.Time
-    RevokedAt *time.Time
-}
+Client → Kong → Auth-Service HTTP → Validate JWT → Business Logic
+                                   ↑
+                              Every request validates JWT
+                              (Performance bottleneck)
 ```
 
-#### AuditLog Entity
-
-```go
-type AuditLog struct {
-    ID        uuid.UUID
-    UserID    uuid.UUID
-    Action    AuditAction
-    IPAddress string
-    UserAgent string
-    Metadata  map[string]interface{}
-    CreatedAt time.Time
-}
+### After (New Approach)
+```
+Client → Kong Gateway
+         ↓
+      JWT Plugin (validate locally)
+         ↓
+      Request Transformer (inject x-user-id)
+         ↓
+      gRPC-Gateway
+         ↓
+      Auth-Service gRPC → Auth Interceptor → Business Logic
+                          ↓
+                    Read x-user-id from metadata
+                    (No JWT validation needed)
 ```
 
-### 4. Use Cases Implemented
+## 🔑 Key Benefits
 
-**AuthUseCase** với các methods:
+1. **Performance**
+   - Kong validates JWT với shared secret (không gọi auth-service)
+   - Auth-service không phải validate mỗi request
+   - Giảm network calls, giảm latency
 
-1. `Register(ctx, RegisterRequest)` - Đăng ký user mới
-2. `Login(ctx, LoginRequest, ip, userAgent)` - Đăng nhập
-3. `RefreshToken(ctx, refreshToken)` - Làm mới access token
-4. `Logout(ctx, userID, refreshToken, ip, userAgent)` - Đăng xuất
-5. `LogoutAll(ctx, userID, ip, userAgent)` - Đăng xuất tất cả thiết bị
-6. `GetMe(ctx, userID)` - Lấy thông tin user hiện tại
-7. `ChangePassword(ctx, userID, ChangePasswordRequest)` - Đổi mật khẩu
+2. **Scalability**
+   - Auth-service có thể scale độc lập
+   - Kong cache JWT public key/secret
+   - Stateless JWT validation
 
-### 5. Infrastructure Services
+3. **Security**
+   - Centralized authentication tại gateway
+   - Consistent JWT validation across services
+   - Easy to add new microservices (không cần implement JWT validation)
 
-#### JWTService
+4. **Maintainability**
+   - Auth logic tách biệt khỏi business logic
+   - Kong config declarative (GitOps friendly)
+   - Easy to debug (logs tập trung tại gateway)
 
-- Generate access tokens with claims (userID, email, role)
-- Generate refresh tokens (random, hashed)
-- Validate and parse tokens
-- Configurable TTL
+## 📝 Important Notes
 
-#### PasswordService
+### JWT Secret Synchronization
+⚠️ **CRITICAL**: JWT secret phải giống nhau:
+- Auth-service `.env`: `JWT_SECRET=your-secret-key-change-this-in-production`
+- Kong `kong.yml`: `secret: your-secret-key-change-this-in-production`
 
-- Bcrypt hashing
-- Password strength validation
-- Common password checking
+### Token Blacklist Handling
+Current approach: **Option B - Check in Service**
+- Kong validates JWT signature & expiry
+- Auth-service checks blacklist khi xử lý business logic
+- Trade-off: Short delay for revocation vs simplicity
 
-#### Logger
+Future enhancement: Implement Kong custom plugin to check Redis blacklist
 
-- Structured logging with Zap
-- Development and production modes
-- Request/response logging
+### RefreshToken Flow
+Changed from cookie-based to body-based:
+- **Before**: RefreshToken in HTTP-only cookie
+- **After**: RefreshToken in request body (gRPC friendly)
 
-### 6. HTTP Middleware
+### Audit Logs
+Kong forwards client info via headers:
+- `x-forwarded-for` → Client IP
+- `user-agent` → User agent string
+- Interceptor extracts these for audit logs
 
-- ✅ Authentication middleware (JWT validation)
-- ✅ CORS middleware
-- ✅ Logger middleware (request/response logging)
-- ✅ Recovery middleware (panic recovery)
+## 🧪 Testing
 
-### 7. Database Layer
+See `TESTING_GUIDE.md` for detailed testing instructions.
 
-- ✅ PostgreSQL with GORM
-- ✅ Auto migrations
-- ✅ Connection pooling
-- ✅ Repository pattern implementation
-
-### 8. Configuration Management
-
-- ✅ Environment-based configuration
-- ✅ Validation on load
-- ✅ Sensible defaults
-- ✅ Support for development and production
-
-### 9. DevOps Support
-
-- ✅ Dockerfile (multi-stage build)
-- ✅ docker-compose.yml (with health checks)
-- ✅ Makefile (common commands)
-- ✅ .gitignore
-- ✅ Health check endpoints
-
-## API Endpoints
-
-### Public Endpoints
-
-```
-GET  /health                          # Health check
-POST /api/v1/auth/register           # Register user
-POST /api/v1/auth/login              # Login
-POST /api/v1/auth/refresh            # Refresh token
-```
-
-### Protected Endpoints (Require JWT)
-
-```
-GET  /api/v1/auth/me                 # Get current user
-POST /api/v1/auth/logout             # Logout
-POST /api/v1/auth/logout-all         # Logout all devices
-PUT  /api/v1/auth/change-password    # Change password
-```
-
-## Technology Stack
-
-### Core
-
-- **Go 1.23** - Programming language
-- **Gin** - HTTP framework
-- **GORM** - ORM for database
-- **PostgreSQL** - Database
-
-### Libraries
-
-- `golang-jwt/jwt` - JWT implementation
-- `google/uuid` - UUID generation
-- `golang.org/x/crypto` - Bcrypt password hashing
-- `uber-go/zap` - Structured logging
-- `joho/godotenv` - Environment variables
-
-### Tools
-
-- Docker & Docker Compose
-- Make
-
-## Architecture Highlights
-
-### 1. Dependency Inversion
-
-- Domain không phụ thuộc vào infrastructure
-- Infrastructure implements domain interfaces
-- Easy to test and mock
-
-### 2. Clean Separation of Concerns
-
-- **Domain**: Pure business logic
-- **Application**: Orchestration (use cases)
-- **Infrastructure**: Technical details
-- **Delivery**: API/HTTP layer
-
-### 3. Testability
-
-- Easy to unit test use cases (mock repositories)
-- Easy to integration test (real database)
-- No framework dependencies in domain
-
-### 4. Scalability
-
-- Stateless (JWT tokens)
-- Horizontal scaling ready
-- Database connection pooling
-- Microservice-friendly
-
-### 5. Security
-
-- Password hashing with bcrypt
-- Short-lived access tokens
-- Refresh token rotation
-- Account lockout protection
-- Audit logging
-
-## Comparison with Old Version
-
-| Aspect          | Old Version              | New Version                    |
-| --------------- | ------------------------ | ------------------------------ |
-| Architecture    | Mixed concerns           | Clean Architecture             |
-| Testability     | Hard to test             | Easy to mock & test            |
-| Structure       | Unclear folder structure | Clear layer separation         |
-| Dependencies    | Tightly coupled          | Loosely coupled via interfaces |
-| Business Logic  | Scattered                | Centralized in domain          |
-| Database Access | Direct in handlers       | Repository pattern             |
-| Scalability     | Limited                  | Microservice-ready             |
-| Documentation   | Minimal                  | Comprehensive                  |
-
-## How to Run
-
-### Quick Start (Docker)
-
+Quick test:
 ```bash
-docker-compose up -d
-```
-
-### Local Development
-
-```bash
-# Setup
-cp .env.example .env
-make deps
-
-# Run
-make run
-
-# Test
-make test
-```
-
-## Testing Example
-
-```bash
-# Register
-curl -X POST http://localhost:9001/api/v1/auth/register \
+# 1. Register
+curl -X POST http://localhost:8000/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"Test@123456"}'
+  -d '{"email":"test@test.com","password":"Pass1234"}'
 
-# Login
-curl -X POST http://localhost:9001/api/v1/auth/login \
+# 2. Login
+curl -X POST http://localhost:8000/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"Test@123456"}'
+  -d '{"email":"test@test.com","password":"Pass1234"}'
 
-# Get Me (use access_token from login response)
-curl -X GET http://localhost:9001/api/v1/auth/me \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
+# 3. Get user info (use token from login)
+curl http://localhost:8000/api/v1/auth/me \
+  -H "Authorization: Bearer <access_token>"
 ```
 
-## Configuration
+## 🚀 Deployment
 
-Key environment variables:
+### Production Checklist
+- [ ] Change JWT_SECRET to strong random value
+- [ ] Update Kong consumer secret to match JWT_SECRET
+- [ ] Enable HTTPS on Kong (TLS termination)
+- [ ] Set CORS origins to production domains only
+- [ ] Monitor Kong metrics (request rate, latency, errors)
+- [ ] Setup log aggregation (Kong + Auth-service logs)
+- [ ] Configure Redis for distributed blacklist (future)
 
-```env
-# Server
-PORT=9001
+## 📚 Next Steps
 
-# Database
-DB_HOST=localhost
-DB_PORT=5432
-DB_USER=postgres
-DB_PASSWORD=postgres
-DB_NAME=auth_db
+1. **Add User-Service**
+   - Follow same pattern (gRPC only)
+   - Add route to Kong with JWT plugin
+   - Use interceptor to get user_id from metadata
 
-# JWT
-JWT_SECRET=your-secret-key
-ACCESS_TOKEN_TTL=15m
-REFRESH_TOKEN_TTL=720h
+2. **Implement Redis Blacklist**
+   - Shared Redis for all services
+   - Kong custom plugin for real-time revocation
 
-# Security
-MAX_LOGIN_ATTEMPTS=5
-ACCOUNT_LOCK_DURATION=15m
-ALLOWED_ORIGINS=http://localhost:3000
-```
+3. **Add Rate Limiting**
+   - Kong rate-limit plugin per consumer
+   - Protect against brute force attacks
 
-## Future Enhancements (Not Implemented Yet)
+4. **Setup Monitoring**
+   - Prometheus metrics from Kong
+   - Grafana dashboard for API Gateway
+   - Alert on high error rates
 
-### Authentication
+## 🐛 Known Issues / Limitations
 
-- [ ] Email verification flow
-- [ ] Password reset flow
-- [ ] Two-factor authentication (2FA)
-- [ ] Social login (Google, Facebook)
-- [ ] OAuth2 provider
+1. **Token Revocation Delay**
+   - Blacklisted tokens still valid at Kong level until checked by service
+   - Acceptable for most use cases (short TTL = 15 mins)
 
-### Security
+2. **gRPC Error Mapping**
+   - Some gRPC errors may not map perfectly to HTTP status codes
+   - Test all error scenarios
 
-- [ ] Rate limiting per IP
-- [ ] Redis for token blacklist
-- [ ] Session management
-- [ ] Device tracking
+3. **No Distributed Tracing Yet**
+   - Add OpenTelemetry in future for request tracing across services
 
-### Features
+## 📞 Support
 
-- [ ] User roles and permissions (RBAC)
-- [ ] User profile management
-- [ ] Admin endpoints
-- [ ] Soft delete users
-
-### Infrastructure
-
-- [ ] Caching with Redis
-- [ ] Message queue integration
-- [ ] Distributed tracing
-- [ ] Metrics (Prometheus)
-
-### Testing
-
-- [ ] Unit tests
-- [ ] Integration tests
-- [ ] E2E tests
-- [ ] Load testing
-
-## Documentation Files
-
-1. **README.md** - Main documentation, features, setup
-2. **ARCHITECTURE.md** - Detailed architecture explanation
-3. **QUICKSTART.md** - Quick start guide with API examples
-4. **IMPLEMENTATION_SUMMARY.md** - This file
-
-## Code Quality
-
-### Best Practices Applied
-
-✅ Clean Architecture principles
-✅ SOLID principles
-✅ Dependency injection
-✅ Interface-based design
-✅ Error handling
-✅ Structured logging
-✅ Configuration management
-✅ Security best practices
-
-### Code Organization
-
-✅ Clear folder structure
-✅ Meaningful package names
-✅ Separation of concerns
-✅ Single responsibility
-✅ DRY (Don't Repeat Yourself)
-
-## Deployment Ready
-
-✅ Docker support
-✅ docker-compose for local development
-✅ Health check endpoints
-✅ Graceful shutdown
-✅ Environment-based configuration
-✅ Connection pooling
-✅ Structured logging
-✅ Error handling
-
-## Summary
-
-Đã xây dựng hoàn chỉnh một Auth Service theo Clean Architecture với:
-
-- **27 files Go code** được tổ chức rõ ràng theo layers
-- **8 API endpoints** cho authentication
-- **3 domain entities** với business logic
-- **6 repository interfaces** và implementations
-- **2 service interfaces** (JWT, Password) và implementations
-- **Full documentation** (README, ARCHITECTURE, QUICKSTART)
-- **Docker support** cho development và deployment
-- **Production-ready** với security, logging, monitoring
-
-Service này dễ dàng scale, maintain, và extend cho các features mới trong tương lai.
+If you encounter issues:
+1. Check logs: Kong logs (`docker logs kong`) and auth-service logs
+2. Verify JWT secret synchronization
+3. Test with curl commands from TESTING_GUIDE.md
+4. Check Kong admin API: `http://localhost:8001/routes`, `/plugins`

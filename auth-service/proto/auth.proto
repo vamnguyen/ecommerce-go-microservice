@@ -26,6 +26,40 @@ service AuthService {
       body: "*"
     };
   }
+
+  rpc RefreshToken (RefreshTokenRequest) returns (RefreshTokenResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/refresh"
+      body: "*"
+    };
+  }
+
+  rpc Logout (LogoutRequest) returns (LogoutResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/logout"
+      body: "*"
+    };
+  }
+
+  rpc LogoutAll (LogoutAllRequest) returns (LogoutAllResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/logout-all"
+      body: "*"
+    };
+  }
+
+  rpc GetMe (GetMeRequest) returns (GetMeResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/auth/me"
+    };
+  }
+
+  rpc ChangePassword (ChangePasswordRequest) returns (ChangePasswordResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/auth/change-password"
+      body: "*"
+    };
+  }
 }
 
 message HealthCheckRequest {}
@@ -45,10 +79,43 @@ message RegisterResponse {
 message LoginRequest {
   string email = 1;
   string password = 2;
-  string ip_address = 3;
-  string user_agent = 4;
 }
 message LoginResponse {
   string access_token = 1;
   string refresh_token = 2;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+  string access_token = 2;
+}
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+}
+
+message LogoutRequest {
+  string refresh_token = 1;
+}
+message LogoutResponse {}
+
+message LogoutAllRequest {}
+message LogoutAllResponse {}
+
+message GetMeRequest {}
+message GetMeResponse {
+  string id = 1;
+  string email = 2;
+  string role = 3;
+  bool is_verified = 4;
+  bool is_active = 5;
+  string created_at = 6;
+}
+
+message ChangePasswordRequest {
+  string old_password = 1;
+  string new_password = 2;
+}
+message ChangePasswordResponse {
+  string message = 1;
 }

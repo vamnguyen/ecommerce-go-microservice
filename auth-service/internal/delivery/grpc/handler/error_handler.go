@@ -17,7 +17,7 @@ func toGRPCError(err error) error {
 		return status.Error(codes.Unauthenticated, err.Error())
 	case domainErr.ErrAccountLocked, domainErr.ErrAccountInactive:
 		return status.Error(codes.PermissionDenied, err.Error())
-	case domainErr.ErrInvalidToken, domainErr.ErrTokenExpired, domainErr.ErrTokenRevoked:
+	case domainErr.ErrInvalidToken, domainErr.ErrTokenExpired, domainErr.ErrTokenRevoked, domainErr.ErrMissingToken:
 		return status.Error(codes.Unauthenticated, err.Error())
 	case domainErr.ErrWeakPassword, domainErr.ErrInvalidPassword:
 		return status.Error(codes.InvalidArgument, err.Error())
