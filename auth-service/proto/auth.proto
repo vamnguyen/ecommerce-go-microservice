@@ -87,7 +87,7 @@ message LoginResponse {
 
 message RefreshTokenRequest {
   string refresh_token = 1;
-  string access_token = 2;
+
 }
 message RefreshTokenResponse {
   string access_token = 1;

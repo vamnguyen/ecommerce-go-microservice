@@ -60,8 +60,9 @@ func (h *GRPCHandler) Login(ctx context.Context, req *proto.LoginRequest) (*prot
 func (h *GRPCHandler) RefreshToken(ctx context.Context, req *proto.RefreshTokenRequest) (*proto.RefreshTokenResponse, error) {
 	ipAddress := interceptor.GetClientIPFromContext(ctx)
 	userAgent := interceptor.GetUserAgentFromContext(ctx)
+	accessToken := interceptor.GetAccessTokenFromContext(ctx)
 
-	result, err := h.authUsecase.RefreshToken(ctx, req.GetRefreshToken(), req.GetAccessToken(), ipAddress, userAgent)
+	result, err := h.authUsecase.RefreshToken(ctx, req.GetRefreshToken(), accessToken, ipAddress, userAgent)
 	if err != nil {
 		return nil, toGRPCError(err)
 	}
@@ -80,8 +81,7 @@ func (h *GRPCHandler) Logout(ctx context.Context, req *proto.LogoutRequest) (*pr
 
 	ipAddress := interceptor.GetClientIPFromContext(ctx)
 	userAgent := interceptor.GetUserAgentFromContext(ctx)
-
-	accessToken := ""
+	accessToken := interceptor.GetAccessTokenFromContext(ctx)
 
 	if err := h.authUsecase.Logout(ctx, userID, req.GetRefreshToken(), accessToken, ipAddress, userAgent); err != nil {
 		return nil, toGRPCError(err)
@@ -98,8 +98,7 @@ func (h *GRPCHandler) LogoutAll(ctx context.Context, req *proto.LogoutAllRequest
 
 	ipAddress := interceptor.GetClientIPFromContext(ctx)
 	userAgent := interceptor.GetUserAgentFromContext(ctx)
-
-	accessToken := ""
+	accessToken := interceptor.GetAccessTokenFromContext(ctx)
 
 	if err := h.authUsecase.LogoutAll(ctx, userID, accessToken, ipAddress, userAgent); err != nil {
 		return nil, toGRPCError(err)

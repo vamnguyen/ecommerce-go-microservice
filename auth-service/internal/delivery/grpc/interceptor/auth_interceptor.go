@@ -99,3 +99,8 @@ func GetUserAgentFromContext(ctx context.Context) string {
 	agent, _ := ctx.Value(UserAgentKey).(string)
 	return agent
 }
+
+func GetAccessTokenFromContext(ctx context.Context) string {
+	token, _ := ctx.Value(AccessTokenKey).(string)
+	return token
+}
