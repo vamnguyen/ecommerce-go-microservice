@@ -45,3 +45,7 @@ logs/
 
 # Generated files
 gen/
+
+# Ignore JWT keys
+certs/
+*.pem

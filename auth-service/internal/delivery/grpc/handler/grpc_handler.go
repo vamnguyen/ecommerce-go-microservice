@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"auth-service/gen/go/proto"
+	proto "auth-service/gen/go"
 	"auth-service/internal/application/dto"
 	"auth-service/internal/application/usecase"
 	"auth-service/internal/delivery/grpc/interceptor"
@@ -144,4 +144,11 @@ func (h *GRPCHandler) ChangePassword(ctx context.Context, req *proto.ChangePassw
 	}
 
 	return &proto.ChangePasswordResponse{Message: "password changed successfully"}, nil
+}
+
+func (h *GRPCHandler) GetPublicKey(ctx context.Context, req *proto.GetPublicKeyRequest) (*proto.GetPublicKeyResponse, error) {
+	return &proto.GetPublicKeyResponse{
+		PublicKey: h.authUsecase.GetPublicKey(ctx),
+		Algorithm: h.authUsecase.GetAlgorithm(),
+	}, nil
 }

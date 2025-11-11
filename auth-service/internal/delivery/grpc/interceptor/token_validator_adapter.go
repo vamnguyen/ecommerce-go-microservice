@@ -12,8 +12,8 @@ func NewTokenServiceAdapter(tokenService service.TokenService) *TokenServiceAdap
 	}
 }
 
-func (a *TokenServiceAdapter) ValidateAccessToken(token string) (*TokenClaims, error) {
-	claims, err := a.tokenService.ValidateAccessToken(token)
+func (a *TokenServiceAdapter) ExtractClaims(token string) (*TokenClaims, error) {
+	claims, err := a.tokenService.ExtractClaimsWithoutValidation(token)
 	if err != nil {
 		return nil, err
 	}

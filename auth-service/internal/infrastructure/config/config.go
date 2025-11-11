@@ -38,7 +38,9 @@ type DatabaseConfig struct {
 }
 
 type JWTConfig struct {
-	Secret          string
+	Algorithm       string
+	PrivateKeyPath  string
+	PublicKeyPath   string
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 }
@@ -78,7 +80,9 @@ func Load() (*Config, error) {
 			ConnMaxLifetime: parseDuration(getEnv("DB_CONN_MAX_LIFETIME", "5m")),
 		},
 		JWT: JWTConfig{
-			Secret:          getEnv("JWT_SECRET", ""),
+			Algorithm:       getEnv("JWT_ALGORITHM", "RS256"),
+			PrivateKeyPath:  getEnv("JWT_PRIVATE_KEY_PATH", "./certs/private_key.pem"),
+			PublicKeyPath:   getEnv("JWT_PUBLIC_KEY_PATH", "./certs/public_key.pem"),
 			AccessTokenTTL:  parseDuration(getEnv("ACCESS_TOKEN_TTL", "15m")),
 			RefreshTokenTTL: parseDuration(getEnv("REFRESH_TOKEN_TTL", "720h")),
 		},
@@ -102,8 +106,11 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) Validate() error {
-	if c.JWT.Secret == "" {
-		return fmt.Errorf("JWT_SECRET is required")
+	if c.JWT.PrivateKeyPath == "" {
+		return fmt.Errorf("JWT_PRIVATE_KEY_PATH is required")
+	}
+	if c.JWT.PublicKeyPath == "" {
+		return fmt.Errorf("JWT_PUBLIC_KEY_PATH is required")
 	}
 	if c.Database.Password == "" {
 		return fmt.Errorf("DB_PASSWORD is required")

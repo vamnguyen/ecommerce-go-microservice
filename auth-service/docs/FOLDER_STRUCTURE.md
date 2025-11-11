@@ -30,11 +30,13 @@ cmd/
 ```
 
 **Đặc điểm**:
+
 - Mỗi subfolder là một executable
 - Chỉ chứa dependency injection và wiring
 - Code tối thiểu, chỉ khởi tạo và chạy app
 
 **Ví dụ thêm commands**:
+
 ```
 cmd/
 ├── server/             # HTTP server
@@ -57,6 +59,7 @@ internal/
 ```
 
 **Tại sao internal?**
+
 - Go compiler tự động enforce: code trong `internal/` không thể import từ bên ngoài module
 - Đảm bảo encapsulation giữa các services
 - Tránh coupling giữa microservices
@@ -74,6 +77,7 @@ domain/
 ```
 
 **Đặc điểm**:
+
 - ✅ Business rules
 - ✅ Interfaces definition
 - ❌ KHÔNG có database code
@@ -91,6 +95,7 @@ application/
 ```
 
 **Đặc điểm**:
+
 - ✅ Use domain entities và interfaces
 - ✅ Coordinate giữa repositories và services
 - ❌ KHÔNG biết về HTTP hay database specifics
@@ -111,11 +116,13 @@ infrastructure/
 **TẠI SAO config và logger ở đây thay vì `pkg/`?**
 
 **Lý do 1: Infrastructure Concerns**
+
 - Config và logger là **infrastructure concerns**, không phải business logic
 - Chúng implement cách service tương tác với external systems
 - Trong Clean Architecture, đây là outer layer
 
 **Lý do 2: Service-Specific Implementation**
+
 ```go
 // infrastructure/config/config.go
 type Config struct {
@@ -130,6 +137,7 @@ type Config struct {
 Config này chứa **business-specific settings** (JWT, Security), không phải generic config.
 
 **Lý do 3: Dependency Direction**
+
 ```
 internal/infrastructure/ implements internal/domain/ interfaces
 ```
@@ -137,6 +145,7 @@ internal/infrastructure/ implements internal/domain/ interfaces
 Nếu để ở `pkg/`, sẽ bị ngược chiều dependency.
 
 **Khi nào NÊN để ở `pkg/`?**
+
 ```go
 // pkg/config/loader.go - Generic config loader
 func LoadFromEnv(prefix string) (map[string]string, error) {
@@ -163,6 +172,7 @@ delivery/
 ```
 
 **Đặc điểm**:
+
 - ✅ Framework-specific code (Gin)
 - ✅ Request/response transformation
 - ✅ Call use cases
@@ -182,12 +192,14 @@ pkg/
 ```
 
 **Nguyên tắc cho pkg/**:
+
 1. **Generic** - Không specific cho một service
 2. **Reusable** - Có thể dùng ở nhiều services
 3. **Stable** - API ít thay đổi
 4. **No business logic** - Chỉ là utilities
 
 **Ví dụ ĐÚNG cho pkg/:**
+
 ```go
 // pkg/response/response.go
 package response
@@ -199,26 +211,28 @@ func JSON(c *gin.Context, status int, data interface{}) {
 ```
 
 **Ví dụ SAI (nên ở internal/):**
+
 ```go
 // pkg/auth/jwt.go ❌ SAI
 package auth
 
 // Too specific, should be in internal/infrastructure/security/
-type JWTService struct {
+type TokenService struct {
     secret string
 }
 ```
 
 **So sánh pkg/ vs internal/:**
 
-| Aspect | `pkg/` | `internal/` |
-|--------|--------|-------------|
-| Visibility | Public, có thể import từ services khác | Private, chỉ service này dùng |
-| Purpose | Generic utilities | Business logic + implementation |
-| Stability | Phải stable, nhiều service depend | Có thể thay đổi thoải mái |
-| Examples | HTTP helpers, validators, utils | Use cases, repositories, entities |
+| Aspect     | `pkg/`                                 | `internal/`                       |
+| ---------- | -------------------------------------- | --------------------------------- |
+| Visibility | Public, có thể import từ services khác | Private, chỉ service này dùng     |
+| Purpose    | Generic utilities                      | Business logic + implementation   |
+| Stability  | Phải stable, nhiều service depend      | Có thể thay đổi thoải mái         |
+| Examples   | HTTP helpers, validators, utils        | Use cases, repositories, entities |
 
 **Khi nào tạo pkg/?**
+
 - Khi bạn copy-paste code giống nhau giữa nhiều services
 - Khi bạn muốn share utilities với other teams
 - Khi code là generic và không chứa business logic
@@ -237,6 +251,7 @@ scripts/
 ```
 
 **Ví dụ thêm scripts:**
+
 ```
 scripts/
 ├── build.sh          # Build for different platforms
@@ -261,6 +276,7 @@ docs/
 ```
 
 **Tại sao tách docs/ folder?**
+
 - ✅ Root folder gọn gàng hơn
 - ✅ Dễ tìm documentation
 - ✅ Có thể generate docs site (MkDocs, Docusaurus)
@@ -283,6 +299,7 @@ cmd → internal/delivery → internal/application → internal/domain
 ### 2. Import Rules
 
 **✅ ĐƯỢC PHÉP:**
+
 ```go
 // internal/delivery/http/handler/auth_handler.go
 import (
@@ -292,6 +309,7 @@ import (
 ```
 
 **❌ KHÔNG ĐƯỢC:**
+
 ```go
 // internal/domain/entity/user.go
 import (
@@ -303,6 +321,7 @@ import (
 ### 3. Khi nào tạo pkg/ mới?
 
 **Hỏi 3 câu:**
+
 1. Code này có generic không? (không specific cho auth service)
 2. Code này có thể reuse ở service khác không?
 3. Code này có chứa business logic không? (không nên có)
@@ -317,6 +336,7 @@ Ngược lại → Đặt vào `internal/`
 ### Example 1: Thêm Email Service
 
 **Nếu generic email sender:**
+
 ```
 pkg/
 └── email/
@@ -325,6 +345,7 @@ pkg/
 ```
 
 **Nếu specific cho auth (verification emails):**
+
 ```
 internal/
 └── infrastructure/
@@ -335,6 +356,7 @@ internal/
 ### Example 2: Thêm Metrics
 
 **Generic metrics collector:**
+
 ```
 pkg/
 └── metrics/
@@ -343,6 +365,7 @@ pkg/
 ```
 
 **Auth-specific metrics:**
+
 ```
 internal/
 └── infrastructure/
@@ -355,6 +378,7 @@ internal/
 ## Migration from Old Structure
 
 **Old structure:**
+
 ```
 auth-service-old/
 ├── config/          # ← Mixed
@@ -366,6 +390,7 @@ auth-service-old/
 ```
 
 **New structure (Clean Architecture):**
+
 ```
 auth-service/
 ├── internal/
@@ -402,16 +427,19 @@ Is this code specific to auth-service?
 ### Key Points
 
 1. **`internal/infrastructure/`** - Service-specific technical implementations
+
    - Config with business settings (JWT, Security)
    - Logger với service context
    - Database models và repositories
 
 2. **`pkg/`** - Generic, reusable utilities
+
    - HTTP response helpers
    - Generic validators
    - Common utilities
 
 3. **`scripts/`** - Automation và tooling
+
    - Database migrations
    - Testing scripts
    - Deployment automation
@@ -421,7 +449,8 @@ Is this code specific to auth-service?
    - Easy to maintain
    - Can generate doc sites
 
-**Nguyên tắc vàng**: 
+**Nguyên tắc vàng**:
+
 - Bắt đầu với `internal/`, chỉ move sang `pkg/` khi thực sự cần share
 - Prefer duplication over wrong abstraction
 - Keep business logic in `internal/domain/`

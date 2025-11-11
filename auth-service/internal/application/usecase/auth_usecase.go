@@ -319,3 +319,11 @@ func (uc *AuthUseCase) ChangePassword(ctx context.Context, userID string, req dt
 
 	return nil
 }
+
+func (uc *AuthUseCase) GetPublicKey(ctx context.Context) string {
+	return uc.tokenService.GetPublicKey()
+}
+
+func (uc *AuthUseCase) GetAlgorithm() string {
+	return uc.tokenService.GetAlgorithm()
+}

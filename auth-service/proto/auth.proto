@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package proto;
 
-option go_package = "auth-service/gen/go/proto";
+option go_package = "auth-service/gen/go";
 
 import "google/api/annotations.proto";
 
@@ -58,6 +58,12 @@ service AuthService {
     option (google.api.http) = {
       post: "/api/v1/auth/change-password"
       body: "*"
+    };
+  }
+
+  rpc GetPublicKey (GetPublicKeyRequest) returns (GetPublicKeyResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/auth/public-key"
     };
   }
 }
@@ -118,4 +124,10 @@ message ChangePasswordRequest {
 }
 message ChangePasswordResponse {
   string message = 1;
+}
+
+message GetPublicKeyRequest {}
+message GetPublicKeyResponse {
+  string public_key = 1;
+  string algorithm = 2;
 }

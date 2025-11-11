@@ -8,7 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"auth-service/gen/go/proto"
+	proto "auth-service/gen/go"
 	"auth-service/internal/application/usecase"
 	grpcHandler "auth-service/internal/delivery/grpc/handler"
 	"auth-service/internal/delivery/grpc/interceptor"
@@ -49,11 +49,17 @@ func main() {
 	auditLogRepo := postgres.NewAuditLogRepository(db)
 
 	passwordService := security.NewBcryptPasswordService()
-	tokenService := security.NewJWTService(
-		cfg.JWT.Secret,
+	tokenService, err := security.NewJWTService(
+		cfg.JWT.Algorithm,
+		cfg.JWT.PrivateKeyPath,
+		cfg.JWT.PublicKeyPath,
 		cfg.JWT.AccessTokenTTL,
 		cfg.JWT.RefreshTokenTTL,
 	)
+	if err != nil {
+		log.Error("failed to initialize JWT service", zap.Error(err))
+		panic(err)
+	}
 
 	authUseCase := usecase.NewAuthUseCase(
 		userRepo,
@@ -69,7 +75,7 @@ func main() {
 	)
 
 	grpcHandler := grpcHandler.NewGRPCHandler(*authUseCase)
-	
+
 	tokenValidator := interceptor.NewTokenServiceAdapter(tokenService)
 	grpcServer := grpc.NewServer(
 		grpc.UnaryInterceptor(interceptor.NewAuthInterceptor(tokenValidator)),

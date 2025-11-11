@@ -1,19 +1,74 @@
 _format_version: "3.0"
 
+# Consumer đại diện cho user sau khi authenticated
+consumers:
+  - username: authenticated_user
+    # Custom ID sẽ chứa user_id từ JWT
+    custom_id: authenticated_user
+    jwt_secrets:
+      - key: auth-service
+        algorithm: RS256
+        rsa_public_key: |-
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArI+upLb5yOW40HgmHiYi
+          axlnm6t5nmRAUSuCkGw5isHfJAfaCik/3+UWfnvv8kdTXAfOQ3R+fAktRKqh+OVW
+          bCs9mrIWJaNnx4G/u0CZElGGiXVK0ITRhuoXV+Zy57czB+wAvGSgddxd0q4+2Zts
+          uFgtMeX7tiiUhqXVW6VEp/4hRAPLinjr2S+R1zBrslcR1/ifO7nGXxIthCFbnh2w
+          CsP0eKjDs5jThdZNgWYTofW358CMYqhKzWJZU4wm3SE2LlEXOF6ObVVh95/MVar1
+          sMmHjNQY7pGfq3BHlMX0cb5l8DyaghdH4j9GzlpBrN06EuazcTiJMtyFtZgTiZvV
+          CQIDAQAB
+          -----END PUBLIC KEY-----
+
 services:
-  - name: auth-service
+  - name: auth-service-public
     protocol: grpc
     host: host.docker.internal
     port: 9002
     routes:
-      - name: auth-routes
+      - name: auth-public-routes
         protocols:
           - http
           - https
         paths:
-          - /api/v1/auth
+          - /api/v1/auth/login
+          - /api/v1/auth/register
+          - /api/v1/auth/health
+          - /api/v1/auth/public-key
         strip_path: false
         plugins:
           - name: grpc-gateway
             config:
               proto: /etc/kong/proto/auth.proto
+
+  - name: auth-service-protected
+    protocol: grpc
+    host: host.docker.internal
+    port: 9002
+    routes:
+      - name: auth-protected-routes
+        protocols:
+          - http
+          - https
+        paths:
+          - /api/v1/auth/me
+          - /api/v1/auth/refresh
+          - /api/v1/auth/logout
+          - /api/v1/auth/logout-all
+          - /api/v1/auth/change-password
+        strip_path: false
+        plugins:
+          - name: grpc-gateway
+            config:
+              proto: /etc/kong/proto/auth.proto
+          # JWT Plugin - Kong validate JWT với RS256
+          - name: jwt
+            config:
+              header_names:
+                - authorization
+              uri_param_names:
+                - jwt
+              claims_to_verify:
+                - exp
+              key_claim_name: iss
+              secret_is_base64: false
+              run_on_preflight: true

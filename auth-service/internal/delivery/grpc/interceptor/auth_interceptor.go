@@ -2,6 +2,7 @@ package interceptor
 
 import (
 	"context"
+	"log"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -22,9 +23,10 @@ const (
 )
 
 var publicMethods = map[string]bool{
-	"/proto.AuthService/HealthCheck": true,
-	"/proto.AuthService/Register":    true,
-	"/proto.AuthService/Login":       true,
+	"/proto.AuthService/HealthCheck":  true,
+	"/proto.AuthService/Register":     true,
+	"/proto.AuthService/Login":        true,
+	"/proto.AuthService/GetPublicKey": true,
 }
 
 func NewAuthInterceptor(tokenService TokenValidator) grpc.UnaryServerInterceptor {
@@ -34,46 +36,55 @@ func NewAuthInterceptor(tokenService TokenValidator) grpc.UnaryServerInterceptor
 			md = metadata.New(nil)
 		}
 
+		// Extract client info
 		if ips := md.Get("x-forwarded-for"); len(ips) > 0 {
 			ctx = context.WithValue(ctx, ClientIPKey, ips[0])
 		}
-
 		if agents := md.Get("user-agent"); len(agents) > 0 {
 			ctx = context.WithValue(ctx, UserAgentKey, agents[0])
 		}
 
+		// Public methods don't need authentication
 		if publicMethods[info.FullMethod] {
 			return handler(ctx, req)
 		}
 
-		authHeaders := md.Get("authorization")
-		if len(authHeaders) == 0 {
-			return nil, status.Error(codes.Unauthenticated, "missing authorization header")
+		// Check if request was authenticated by Kong Gateway
+		if kongConsumerID := md.Get("x-consumer-id"); len(kongConsumerID) > 0 {
+			log.Println("✅ Request authenticated by Kong Gateway, consumer:", kongConsumerID[0])
+
+			// Extract JWT token and parse claims (Kong already validated it)
+			authHeaders := md.Get("authorization")
+			if len(authHeaders) > 0 {
+				parts := strings.SplitN(authHeaders[0], " ", 2)
+				if len(parts) == 2 {
+					token := parts[1]
+					// Parse claims without validation (Kong already did it)
+					claims, err := tokenService.ExtractClaims(token)
+					if err == nil {
+						ctx = context.WithValue(ctx, UserIDKey, claims.UserID)
+						ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
+						ctx = context.WithValue(ctx, UserRoleKey, claims.Role)
+						ctx = context.WithValue(ctx, AccessTokenKey, token)
+						log.Println("📋 Extracted user info - UserID:", claims.UserID, "Email:", claims.Email,
+							"Role:", claims.Role)
+						return handler(ctx, req)
+					}
+					log.Println("⚠️  Failed to extract claims from JWT:", err)
+				}
+			}
+
+			return nil, status.Error(codes.Internal, "failed to extract user info from JWT")
 		}
 
-		authHeader := authHeaders[0]
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-			return nil, status.Error(codes.Unauthenticated, "invalid authorization header format")
-		}
-
-		token := parts[1]
-		claims, err := tokenService.ValidateAccessToken(token)
-		if err != nil {
-			return nil, status.Error(codes.Unauthenticated, "invalid or expired token")
-		}
-
-		ctx = context.WithValue(ctx, UserIDKey, claims.UserID)
-		ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
-		ctx = context.WithValue(ctx, UserRoleKey, claims.Role)
-		ctx = context.WithValue(ctx, AccessTokenKey, token)
-
-		return handler(ctx, req)
+		// If no Kong consumer header, request is unauthenticated
+		log.Println("❌ Request not authenticated by Kong Gateway")
+		return nil, status.Error(codes.Unauthenticated, "unauthorized: request must go through API gateway")
 	}
 }
 
 type TokenValidator interface {
-	ValidateAccessToken(token string) (*TokenClaims, error)
+	ExtractClaims(token string) (*TokenClaims, error)
 }
 
 type TokenClaims struct {
