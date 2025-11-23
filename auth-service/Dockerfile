@@ -1,6 +1,6 @@
 # --- Giai đoạn 1: BUILDER ---
 # Sử dụng image golang đầy đủ để làm môi trường biên dịch.
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Thiết lập thư mục làm việc.
 WORKDIR /app

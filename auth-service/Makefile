@@ -46,7 +46,7 @@ deps:
 
 gen-proto:
 	export PATH="$PATH:$(go env GOPATH)/bin"
-	source ~/.zshrc  # hoặc source ~/.bashrc
+	source ~/.zshrc
 	protoc \
        --go_out=gen/go \
        --go_opt=paths=source_relative \

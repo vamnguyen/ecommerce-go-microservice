@@ -25,6 +25,32 @@ services:
     volumes:
       - auth-db-data:/var/lib/postgresql/data
 
+  # --- Auth Service ---
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    ports:
+      - "9002:9002"
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=auth-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=auth_db
+      - GRPC_PORT=9002
+      - JWT_PRIVATE_KEY_PATH=./certs/private_key.pem
+      - JWT_PUBLIC_KEY_PATH=./certs/public_key.pem
+    depends_on:
+      auth-db:
+        condition: service_healthy
+    volumes:
+      - ./auth-service/certs:/app/certs
+    networks:
+      - ecommerce-net
+
   # --- Kong API Gateway (DB-less) ---
   kong:
     image: kong:3.4

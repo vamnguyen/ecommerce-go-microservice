@@ -22,7 +22,7 @@ consumers:
 services:
   - name: auth-service-public
     protocol: grpc
-    host: host.docker.internal
+    host: auth-service
     port: 9002
     routes:
       - name: auth-public-routes
@@ -42,7 +42,7 @@ services:
 
   - name: auth-service-protected
     protocol: grpc
-    host: host.docker.internal
+    host: auth-service
     port: 9002
     routes:
       - name: auth-protected-routes
