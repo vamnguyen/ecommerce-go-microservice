@@ -43,9 +43,6 @@ logs/
 *.db
 *.sqlite
 
-# Generated files
-gen/
-
 # Ignore JWT keys
 certs/
 *.pem
