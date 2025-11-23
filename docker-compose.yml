@@ -33,6 +33,7 @@ services:
     container_name: auth-service
     ports:
       - "9002:9002"
+      - "9091:9090" # Metrics endpoint exposed on host 9091
     environment:
       - ENVIRONMENT=development
       - DB_HOST=auth-db
@@ -72,6 +73,39 @@ services:
     networks:
       - ecommerce-net
     restart: unless-stopped
+
+  # --- Observability ---
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
+    container_name: jaeger
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    ports:
+      - "16686:16686" # UI
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+    networks:
+      - ecommerce-net
+
+  prometheus:
+    image: prom/prometheus:v2.49.1
+    container_name: prometheus
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - ecommerce-net
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - ecommerce-net
 
 # Định nghĩa volumes để lưu trữ dữ liệu persistent.
 volumes:

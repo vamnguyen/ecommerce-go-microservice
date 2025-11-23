@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,7 +17,10 @@ import (
 	"auth-service/internal/infrastructure/logger"
 	"auth-service/internal/infrastructure/persistence/postgres"
 	"auth-service/internal/infrastructure/security"
+	"auth-service/internal/infrastructure/telemetry"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -61,6 +65,29 @@ func main() {
 		panic(err)
 	}
 
+	// --- Telemetry Initialization ---
+	shutdownTelemetry, err := telemetry.Init("auth-service", cfg.Telemetry.CollectorAddr)
+	if err != nil {
+		log.Error("failed to initialize telemetry", zap.Error(err))
+		// Don't panic, just log error and continue without telemetry if needed, or panic if strict.
+		// panic(err)
+	}
+	defer func() {
+		if err := shutdownTelemetry(context.Background()); err != nil {
+			log.Error("failed to shutdown telemetry", zap.Error(err))
+		}
+	}()
+
+	// --- Metrics Server ---
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		metricsPort := ":9090" // Separate port for metrics
+		log.Info("starting metrics server", zap.String("port", metricsPort))
+		if err := http.ListenAndServe(metricsPort, nil); err != nil {
+			log.Error("failed to start metrics server", zap.Error(err))
+		}
+	}()
+
 	authUseCase := usecase.NewAuthUseCase(
 		userRepo,
 		refreshTokenRepo,
@@ -78,6 +105,7 @@ func main() {
 
 	tokenValidator := interceptor.NewTokenServiceAdapter(tokenService)
 	grpcServer := grpc.NewServer(
+		grpc.StatsHandler(otelgrpc.NewServerHandler()), // OpenTelemetry StatsHandler
 		grpc.UnaryInterceptor(interceptor.NewAuthInterceptor(tokenValidator)),
 	)
 	proto.RegisterAuthServiceServer(grpcServer, grpcHandler)

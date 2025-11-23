@@ -16,6 +16,11 @@ type Config struct {
 	JWT         JWTConfig
 	Security    SecurityConfig
 	Cookie      CookieConfig
+	Telemetry   TelemetryConfig
+}
+
+type TelemetryConfig struct {
+	CollectorAddr string
 }
 
 type ServerConfig struct {
@@ -95,6 +100,9 @@ func Load() (*Config, error) {
 			RefreshTokenName: getEnv("COOKIE_REFRESH_TOKEN_NAME", "refresh_token"),
 			Secure:           parseBool(getEnv("COOKIE_SECURE", "false")),
 			Domain:           getEnv("COOKIE_DOMAIN", ""),
+		},
+		Telemetry: TelemetryConfig{
+			CollectorAddr: getEnv("OTEL_EXPORTER_OTLP_ENDPOINT", "jaeger:4317"),
 		},
 	}
 
