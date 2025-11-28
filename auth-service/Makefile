@@ -44,18 +44,19 @@ deps:
 	go mod download
 	go mod tidy
 
-gen-proto:
-	export PATH="$PATH:$(go env GOPATH)/bin"
-	source ~/.zshrc
-	protoc \
-       --go_out=gen/go \
-       --go_opt=paths=source_relative \
-       --go-grpc_out=gen/go \
-       --go-grpc_opt=paths=source_relative \
-       --grpc-gateway_out=gen/go \
-       --grpc-gateway_opt=paths=source_relative \
-       --grpc-gateway_opt=logtostderr=true \
-       --proto_path=proto \
-       proto/auth.proto
+proto:
+	@echo "Generating proto files..."
+	@mkdir -p gen/go
+	@PATH="$$(go env GOPATH)/bin:$$PATH" protoc \
+		--go_out=gen/go \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=gen/go \
+		--go-grpc_opt=paths=source_relative \
+		--grpc-gateway_out=gen/go \
+		--grpc-gateway_opt=paths=source_relative \
+		--grpc-gateway_opt=logtostderr=true \
+		--proto_path=proto \
+		--proto_path=../proto-common \
+		proto/auth.proto
 
 .DEFAULT_GOAL := help

@@ -1,0 +1,3 @@
+# This directory contains shared proto files used by all services
+# Currently contains google/api/annotations.proto and google/api/http.proto
+

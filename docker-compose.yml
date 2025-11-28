@@ -69,10 +69,102 @@ services:
       - "8001:8001" # Cổng quản trị của Kong (để cấu hình, xem status...).
     volumes:
       - ./api-gateway/kong.yml:/etc/kong/kong.yml # Mount file cấu hình định tuyến của Kong.
-      - ./auth-service/proto:/etc/kong/proto # Mount toàn bộ thư mục proto bao gồm google/api
+      - ./auth-service/proto:/etc/kong/proto/auth # Mount auth proto
+      - ./user-service/proto:/etc/kong/proto/user # Mount user proto
+      - ./order-service/proto:/etc/kong/proto/order # Mount order proto
+      - ./proto-common:/etc/kong/proto/google # Mount google/api proto files từ proto-common để dùng chung
     networks:
       - ecommerce-net
     restart: unless-stopped
+
+  # --- Database User Service ---
+  user-db:
+    image: postgres:16-alpine
+    container_name: user-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=user_db
+    ports:
+      - "5433:5432"
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d user_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+
+  # --- User Service ---
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    ports:
+      - "9003:9003"
+      - "9092:9090" # Metrics endpoint
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=user-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=user_db
+      - GRPC_PORT=9003
+    depends_on:
+      user-db:
+        condition: service_healthy
+    networks:
+      - ecommerce-net
+
+  # --- Database Order Service ---
+  order-db:
+    image: postgres:16-alpine
+    container_name: order-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=order_db
+    ports:
+      - "5434:5432"
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d order_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - order-db-data:/var/lib/postgresql/data
+
+  # --- Order Service ---
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: order-service
+    ports:
+      - "9004:9004"
+      - "9093:9090" # Metrics endpoint
+    environment:
+      - ENVIRONMENT=development
+      - DB_HOST=order-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=order_db
+      - GRPC_PORT=9004
+      - USER_SERVICE_ADDR=user-service:9003
+    depends_on:
+      order-db:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    networks:
+      - ecommerce-net
 
   # --- Observability ---
   jaeger:
@@ -110,4 +202,6 @@ services:
 # Định nghĩa volumes để lưu trữ dữ liệu persistent.
 volumes:
   auth-db-data:
+  user-db-data:
+  order-db-data:
   kong-db-data:
