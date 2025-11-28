@@ -5,6 +5,8 @@ import (
 	"log"
 	"strings"
 
+	"user-service/internal/infrastructure/security"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -56,17 +58,17 @@ func NewAuthInterceptor() grpc.UnaryServerInterceptor {
 				parts := strings.SplitN(authHeaders[0], " ", 2)
 				if len(parts) == 2 {
 					token := parts[1]
-					// For user-service, we'll extract user info from Kong headers
-					// Kong sets x-consumer-custom-id with user_id from JWT
-					if customID := md.Get("x-consumer-custom-id"); len(customID) > 0 {
-						ctx = context.WithValue(ctx, UserIDKey, customID[0])
+					// Parse JWT token to extract user info directly from claims
+					claims, err := security.ExtractClaimsWithoutValidation(token)
+					if err == nil {
+						ctx = context.WithValue(ctx, UserIDKey, claims.UserID)
+						ctx = context.WithValue(ctx, UserEmailKey, claims.Email)
+						ctx = context.WithValue(ctx, UserRoleKey, claims.Role)
+						ctx = context.WithValue(ctx, AccessTokenKey, token)
+						log.Printf("📋 Extracted user info from JWT - UserID: %s, Email: %s, Role: %s", claims.UserID, claims.Email, claims.Role)
+						return handler(ctx, req)
 					}
-					// Extract email from Kong consumer username
-					if username := md.Get("x-consumer-username"); len(username) > 0 {
-						ctx = context.WithValue(ctx, UserEmailKey, username[0])
-					}
-					ctx = context.WithValue(ctx, AccessTokenKey, token)
-					return handler(ctx, req)
+					log.Printf("⚠️  Failed to extract claims from JWT: %v", err)
 				}
 			}
 
@@ -82,8 +84,10 @@ func NewAuthInterceptor() grpc.UnaryServerInterceptor {
 func GetUserIDFromContext(ctx context.Context) (string, error) {
 	userID, ok := ctx.Value(UserIDKey).(string)
 	if !ok || userID == "" {
+		log.Printf("User ID not found in context")
 		return "", status.Error(codes.Unauthenticated, "user id not found in context")
 	}
+	log.Printf("User ID found in context: %s", userID)
 	return userID, nil
 }
 

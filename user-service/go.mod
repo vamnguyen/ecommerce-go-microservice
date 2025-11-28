@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3
 	github.com/joho/godotenv v1.5.1
 	github.com/prometheus/client_golang v1.23.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.63.0
@@ -13,12 +14,11 @@ require (
 	go.opentelemetry.io/otel/sdk v1.38.0
 	go.opentelemetry.io/otel/sdk/metric v1.38.0
 	go.uber.org/zap v1.27.0
+	google.golang.org/genproto/googleapis/api v0.0.0-20250929231259-57b25ae835d4
 	google.golang.org/grpc v1.76.0
+	google.golang.org/protobuf v1.36.10
 	gorm.io/driver/postgres v1.5.9
 	gorm.io/gorm v1.25.12
-	google.golang.org/protobuf v1.36.10
-	google.golang.org/genproto/googleapis/api v0.0.0-20250929231259-57b25ae835d4
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3
 )
 
 require (
@@ -27,6 +27,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.3.0 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect

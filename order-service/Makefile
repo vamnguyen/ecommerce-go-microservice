@@ -1,4 +1,4 @@
-.PHONY: proto build run test clean docker-build deps
+.PHONY: proto build run test clean docker-build deps dev
 
 deps:
 	@echo "Installing dependencies for order-service..."
@@ -21,6 +21,9 @@ build:
 run:
 	@echo "Running order-service..."
 	@go run ./cmd/server
+
+dev:
+	$(shell go env GOPATH)/bin/air
 
 test:
 	@echo "Running tests..."

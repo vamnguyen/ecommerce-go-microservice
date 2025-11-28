@@ -72,7 +72,9 @@ services:
       - ./auth-service/proto:/etc/kong/proto/auth # Mount auth proto
       - ./user-service/proto:/etc/kong/proto/user # Mount user proto
       - ./order-service/proto:/etc/kong/proto/order # Mount order proto
-      - ./proto-common:/etc/kong/proto/google # Mount google/api proto files từ proto-common để dùng chung
+      - ./proto-common/google:/etc/kong/proto/auth/google # Mount google/api vào auth proto folder
+      - ./proto-common/google:/etc/kong/proto/user/google # Mount google/api vào user proto folder
+      - ./proto-common/google:/etc/kong/proto/order/google # Mount google/api vào order proto folder
     networks:
       - ecommerce-net
     restart: unless-stopped

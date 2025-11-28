@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"log"
 
 	"user-service/internal/application/dto"
 	"user-service/internal/domain/entity"
@@ -22,14 +23,37 @@ func NewUserUseCase(profileRepo repository.UserProfileRepository) *UserUseCase {
 }
 
 func (uc *UserUseCase) GetProfile(ctx context.Context, userID string) (*dto.UserProfileDTO, error) {
+	log.Printf("Getting profile for user ID: %s", userID)
 	userUUID, err := uuid.Parse(userID)
+	log.Printf("Parsed User UUID: %+v", userUUID)
 	if err != nil {
 		return nil, domainErr.ErrInvalidInput
 	}
 
 	profile, err := uc.profileRepo.FindByUserID(ctx, userUUID)
 	if err != nil {
-		return nil, err
+		// If profile doesn't exist, create a default empty profile
+		if err == domainErr.ErrProfileNotFound {
+			log.Printf("Profile not found, creating default profile for user: %s", userID)
+			profile = entity.NewUserProfile(
+				userUUID,
+				"", // FirstName
+				"", // LastName
+				"", // Phone
+				"", // Address
+				"", // City
+				"", // Country
+				"", // PostalCode
+			)
+			if err := uc.profileRepo.Create(ctx, profile); err != nil {
+				log.Printf("Error creating default profile: %v", err)
+				return nil, err
+			}
+			log.Printf("Default profile created successfully")
+		} else {
+			log.Printf("Error finding profile: %v", err)
+			return nil, err
+		}
 	}
 
 	return &dto.UserProfileDTO{

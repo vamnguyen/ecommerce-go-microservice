@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"log"
 
 	proto "user-service/gen/go"
 	"user-service/internal/application/dto"
@@ -25,6 +26,7 @@ func (h *GRPCHandler) HealthCheck(ctx context.Context, req *proto.HealthCheckReq
 }
 
 func (h *GRPCHandler) GetProfile(ctx context.Context, req *proto.GetProfileRequest) (*proto.GetProfileResponse, error) {
+	log.Println("GetProfile request received")
 	userID, err := interceptor.GetUserIDFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -34,8 +36,11 @@ func (h *GRPCHandler) GetProfile(ctx context.Context, req *proto.GetProfileReque
 	if err != nil {
 		return nil, toGRPCError(err)
 	}
+	log.Printf("Profile: %+v", profile)
 
 	email := interceptor.GetUserEmailFromContext(ctx)
+
+	log.Printf("Email: %s", email)
 
 	return &proto.GetProfileResponse{
 		UserId:     profile.UserID,
